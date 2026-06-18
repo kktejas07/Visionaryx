@@ -68,3 +68,9 @@ mobile/ios/
 *.p12
 *.mobileprovision
 *.apk
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
