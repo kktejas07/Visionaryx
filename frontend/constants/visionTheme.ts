@@ -31,18 +31,18 @@ export const PaletteDark = {
   // Borders
   border: '#494454',          // outline-variant
   borderStrong: '#958ea0',    // outline
-  // Brand primary — lavender on dark
-  primary: '#D0BCFF',         // primary (lavender)
-  primaryHover: '#A078FF',    // primary-container
-  primaryActive: '#8B5CF6',   // electric-violet
-  primaryAccent: '#D0BCFF',
-  primaryAccent2: '#818CF8',  // indigo-flare
+  // Brand primary — VIOLET on dark (single primary, no lavender)
+  primary: '#8B5CF6',
+  primaryHover: '#7C3AED',
+  primaryActive: '#A078FF',
+  primaryAccent: '#8B5CF6',
+  primaryAccent2: '#818CF8',
   electricViolet: '#8B5CF6',
   indigoFlare: '#818CF8',
   primaryGradStart: '#8B5CF6',
-  primaryGradEnd: '#818CF8',
-  onPrimary: '#3C0091',
-  primaryFaint: 'rgba(139, 92, 246, 0.14)',
+  primaryGradEnd: '#7C3AED',
+  onPrimary: '#FFFFFF',
+  primaryFaint: 'rgba(139, 92, 246, 0.18)',
   // Live cyan — secondary accent
   cyan: '#06B6D4',            // neon-cyan
   cyanLight: '#4CD7F6',
@@ -111,12 +111,12 @@ export const Radius = {
 // Typography — Geist + Inter + JetBrains Mono.
 // ---------------------------------------------------------------------------
 export const FontFamily = {
-  display: 'Geist_700Bold',
-  heading: 'Geist_600SemiBold',
-  headingMedium: 'Geist_500Medium',
-  body: 'Inter_400Regular',
-  bodyMedium: 'Inter_500Medium',
-  bodySemibold: 'Inter_600SemiBold',
+  display: 'SpaceGrotesk_700Bold',
+  heading: 'SpaceGrotesk_600SemiBold',
+  headingMedium: 'SpaceGrotesk_500Medium',
+  body: 'Roboto_400Regular',
+  bodyMedium: 'Roboto_500Medium',
+  bodySemibold: 'Roboto_700Bold',
   mono: 'JetBrainsMono_400Regular',
   monoMedium: 'JetBrainsMono_500Medium',
   monoSemibold: 'JetBrainsMono_600SemiBold',

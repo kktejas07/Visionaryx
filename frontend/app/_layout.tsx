@@ -1,18 +1,18 @@
 import {
-  Geist_500Medium,
-  Geist_600SemiBold,
-  Geist_700Bold,
-} from '@expo-google-fonts/geist';
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 import {
-  IBMPlexSans_400Regular,
-  IBMPlexSans_500Medium,
-  IBMPlexSans_600SemiBold,
-} from '@expo-google-fonts/ibm-plex-sans';
+  Roboto_400Regular,
+  Roboto_500Medium,
+  Roboto_700Bold,
+} from '@expo-google-fonts/roboto';
 import {
-  IBMPlexMono_400Regular,
-  IBMPlexMono_500Medium,
-  IBMPlexMono_600SemiBold,
-} from '@expo-google-fonts/ibm-plex-mono';
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_600SemiBold,
+} from '@expo-google-fonts/jetbrains-mono';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -26,11 +26,7 @@ import { PaletteDark, FontFamily as Fonts } from '@/constants/visionTheme';
 import { DesktopShell } from '@/components/DesktopShell';
 
 export { ErrorBoundary } from 'expo-router';
-
-export const unstable_settings = {
-  initialRouteName: 'index',
-};
-
+export const unstable_settings = { initialRouteName: 'index' };
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const VxNavTheme = {
@@ -48,33 +44,26 @@ const VxNavTheme = {
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
-    IBMPlexSans_400Regular,
-    IBMPlexSans_500Medium,
-    IBMPlexSans_600SemiBold,
-    IBMPlexMono_400Regular,
-    IBMPlexMono_500Medium,
-    IBMPlexMono_600SemiBold,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Roboto_400Regular,
+    Roboto_500Medium,
+    Roboto_700Bold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
+    JetBrainsMono_600SemiBold,
   });
 
   useEffect(() => {
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.warn('Font load error', error);
-    }
+    if (error) console.warn('Font load error', error);
   }, [error]);
 
   useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync().catch(() => undefined);
-    }
+    if (loaded || error) SplashScreen.hideAsync().catch(() => undefined);
   }, [loaded, error]);
 
-  if (!loaded && !error) {
-    return null;
-  }
+  if (!loaded && !error) return null;
 
   return (
     <AuthProvider>
@@ -94,18 +83,18 @@ export default function RootLayout() {
               <Stack.Screen name="login" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="camera/[id]" options={{ title: 'Live view' }} />
-              <Stack.Screen name="analytics" options={{ title: 'Analytics', headerShown: false }} />
-              <Stack.Screen name="detections" options={{ title: 'Detections', headerShown: false }} />
-              <Stack.Screen name="audit" options={{ title: 'Audit log', headerShown: false }} />
-              <Stack.Screen name="settings" options={{ title: 'Settings', headerShown: false }} />
-              <Stack.Screen name="users" options={{ title: 'User management', headerShown: false }} />
-              <Stack.Screen name="ai/index" options={{ title: 'AI Studio', headerShown: false }} />
-              <Stack.Screen name="ai/chat" options={{ title: 'Bot Reply', headerShown: false }} />
-              <Stack.Screen name="ai/agents" options={{ title: 'Agents', headerShown: false }} />
-              <Stack.Screen name="ai/automations" options={{ title: 'Automations', headerShown: false }} />
-              <Stack.Screen name="ai/models" options={{ title: 'Models', headerShown: false }} />
-              <Stack.Screen name="ai/rag" options={{ title: 'RAG', headerShown: false }} />
-              <Stack.Screen name="ai/mcp" options={{ title: 'MCP', headerShown: false }} />
+              <Stack.Screen name="analytics" options={{ headerShown: false }} />
+              <Stack.Screen name="detections" options={{ headerShown: false }} />
+              <Stack.Screen name="audit" options={{ headerShown: false }} />
+              <Stack.Screen name="settings" options={{ headerShown: false }} />
+              <Stack.Screen name="users" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/index" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/chat" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/agents" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/automations" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/models" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/rag" options={{ headerShown: false }} />
+              <Stack.Screen name="ai/mcp" options={{ headerShown: false }} />
             </Stack>
           </DesktopShell>
         </ThemeProvider>
