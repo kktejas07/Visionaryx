@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import io
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -209,6 +210,40 @@ async def face_enroll_me(
         detail={"det_score": float(getattr(f, "det_score", 0.0))},
     )
     return {"ok": True, "det_score": float(getattr(f, "det_score", 0.0))}
+
+
+@router.post("/alerts/unknown-face")
+async def report_unknown_face(
+    body: dict[str, Any], user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Create an alert when FaceLab detects UNKNOWN faces over a consecutive
+    window. Frontend calls this after >3 consecutive unknown frames.
+
+    Body: `{ "camera_name": "Webcam · operator-laptop", "det_score": 0.92,
+              "consecutive_frames": 5 }`
+    """
+    from deps import get_db, write_audit  # local import — avoid circular
+    db = get_db()
+    payload = {
+        "_id": __import__("uuid").uuid4().hex,
+        "alert_type": "Unrecognized entry",
+        "severity": "high",
+        "message": f"Unknown face detected over {body.get('consecutive_frames', 3)} consecutive frames",
+        "camera_id": body.get("camera_id"),
+        "camera_name": body.get("camera_name") or "Webcam · FaceLab",
+        "confidence": float(body.get("det_score", 0.0) or 0.0),
+        "is_read": False,
+        "timestamp": datetime.now(timezone.utc),
+        "actor_email": user.get("email"),
+    }
+    await db.alerts.insert_one(payload)
+    await write_audit(
+        action="alerts.unknown_face_emitted", actor=user,
+        resource_type="alert", resource_id=payload["_id"],
+        detail={"camera_name": payload["camera_name"],
+                "consecutive_frames": body.get("consecutive_frames")},
+    )
+    return {"ok": True, "alert_id": payload["_id"]}
 
 
 @router.get("/status")

@@ -43,6 +43,8 @@ export function FaceLab() {
 
   const matchesRef = useRef<Match[]>([]);
   const interpRef = useRef<Match[]>([]); // smoothed for drawing
+  const unknownStreakRef = useRef<number>(0);
+  const lastAlertAtRef = useRef<number>(0);
 
   // ---- camera lifecycle ----
   const start = useCallback(async () => {
@@ -120,6 +122,34 @@ export function FaceLab() {
                 latencyMs: Math.round(now - t0),
               }));
               lastTs = now;
+
+              // Unknown-face alert: emit once we see >=3 consecutive frames
+              // with at least one unknown face, and at most one alert per 30s.
+              const hasUnknown = (data.matches ?? []).some((m: Match) => m.status === 'unknown');
+              if (hasUnknown) {
+                unknownStreakRef.current += 1;
+              } else {
+                unknownStreakRef.current = 0;
+              }
+              if (unknownStreakRef.current >= 3 && Date.now() - lastAlertAtRef.current > 30000) {
+                lastAlertAtRef.current = Date.now();
+                const topUnknown = (data.matches ?? []).find((m: Match) => m.status === 'unknown');
+                try {
+                  await fetch(`${getApiBase()}/api/v1/face/alerts/unknown-face`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({
+                      camera_name: 'Webcam · FaceLab',
+                      det_score: topUnknown?.det_score ?? 0,
+                      consecutive_frames: unknownStreakRef.current,
+                    }),
+                  });
+                  unknownStreakRef.current = 0; // reset after firing
+                } catch {/* swallow */}
+              }
             } else if (res.status === 503) {
               setError('Face model warming up… first run can take ~3 s.');
             }
