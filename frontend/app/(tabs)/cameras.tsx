@@ -17,6 +17,7 @@ import { getApiBase } from '@/lib/config';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput, ErrorBanner } from '@/components/vx';
+import { HlsPlayer } from '@/components/HlsPlayer';
 
 export default function CamerasScreen() {
   const vm = useCamerasViewModel();
@@ -37,15 +38,35 @@ export default function CamerasScreen() {
   const [editEnabled, setEditEnabled] = useState(true);
 
   // Build live-stream src for the View modal whenever a camera is opened.
+  // Prefer HLS gateway (real RTSP→HLS via ffmpeg). If the backend can't reach
+  // the camera within ~6s the gateway will 502/504 and we'll fall back to the
+  // synthetic MJPEG so the modal still shows *something*.
   const [streamSrc, setStreamSrc] = useState<string | null>(null);
+  const [streamMode, setStreamMode] = useState<'hls' | 'mjpeg' | 'loading'>('loading');
   useEffect(() => {
-    if (!viewing) { setStreamSrc(null); return; }
+    if (!viewing) { setStreamSrc(null); setStreamMode('loading'); return; }
     let active = true;
     (async () => {
       const token = await getStoredToken();
       if (!active) return;
-      const url = `${getApiBase()}/api/v1/cameras/${viewing.id}/stream.mjpeg?token=${encodeURIComponent(token ?? '')}`;
-      setStreamSrc(url);
+      const tokenQp = encodeURIComponent(token ?? '');
+      const base = getApiBase();
+      // 1. Probe the HLS playlist endpoint. 200 = ffmpeg up & camera reachable.
+      try {
+        const probe = await fetch(`${base}/api/v1/cameras/${viewing.id}/hls/index.m3u8?token=${tokenQp}`, {
+          method: 'GET',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (active && probe.ok) {
+          setStreamMode('hls');
+          setStreamSrc(`${base}/api/v1/cameras/${viewing.id}/hls/index.m3u8?token=${tokenQp}`);
+          return;
+        }
+      } catch {/* fall through */}
+      if (active) {
+        setStreamMode('mjpeg');
+        setStreamSrc(`${base}/api/v1/cameras/${viewing.id}/stream.mjpeg?token=${tokenQp}`);
+      }
     })();
     return () => { active = false; };
   }, [viewing]);
@@ -240,7 +261,9 @@ export default function CamerasScreen() {
             <View style={styles.previewWrap}>
               {viewing && Platform.OS === 'web' ? (
                 <View style={[styles.previewFrame, { borderColor: colors.border, backgroundColor: '#000' }]}>
-                  {streamSrc ? (
+                  {streamMode === 'hls' && streamSrc ? (
+                    <HlsPlayer src={streamSrc} />
+                  ) : streamMode === 'mjpeg' && streamSrc ? (
                     // @ts-expect-error — DOM element on web
                     <img
                       src={streamSrc}
@@ -253,6 +276,15 @@ export default function CamerasScreen() {
                       <Text style={styles.previewLbl}>CONNECTING…</Text>
                     </View>
                   )}
+                  {streamMode === 'mjpeg' ? (
+                    <View style={styles.streamModeBadge}>
+                      <Text style={styles.streamModeBadgeText}>SYNTHETIC PREVIEW</Text>
+                    </View>
+                  ) : streamMode === 'hls' ? (
+                    <View style={[styles.streamModeBadge, { backgroundColor: 'rgba(6,182,212,0.18)' }]}>
+                      <Text style={[styles.streamModeBadgeText, { color: '#06B6D4' }]}>● LIVE HLS</Text>
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -372,6 +404,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: Space.sm,
   },
   previewLbl: { ...TextStyles.label, color: '#A78BFA', fontFamily: F.mono, fontSize: 10, letterSpacing: 2 },
+  streamModeBadge: {
+    position: 'absolute', top: 10, right: 10,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,182,107,0.18)',
+  },
+  streamModeBadgeText: { ...TextStyles.label, color: '#FFB66B', fontSize: 9, letterSpacing: 1.2 },
   scanLine: {
     position: 'absolute',
     left: 0, right: 0, top: '50%',

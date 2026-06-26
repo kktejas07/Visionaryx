@@ -394,6 +394,7 @@ from routers.settings import router as settings_router  # noqa: E402
 from routers.activity import router as activity_router  # noqa: E402
 from routers.face import router as face_router  # noqa: E402
 from routers.camera_stream import router as camera_stream_router  # noqa: E402
+from routers.hls_gateway import router as hls_router  # noqa: E402
 
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
@@ -405,6 +406,7 @@ app.include_router(settings_router, prefix=API_PREFIX)
 app.include_router(activity_router, prefix=API_PREFIX)
 app.include_router(face_router, prefix=API_PREFIX)
 app.include_router(camera_stream_router, prefix=API_PREFIX)
+app.include_router(hls_router, prefix=API_PREFIX)
 
 
 # ---------------------------------------------------------------------------

@@ -1,13 +1,15 @@
 /**
  * User management — admin-only. MVVM via `useUsersViewModel`.
  */
-import { useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View, TextInput } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useUsersViewModel, type UserItem } from '@/viewmodels';
 import { useAuth } from '@/contexts/AuthContext';
 import { isAdminRole } from '@/lib/roles';
+import { getStoredToken } from '@/lib/api';
+import { getApiBase } from '@/lib/config';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput, ErrorBanner } from '@/components/vx';
@@ -31,6 +33,7 @@ export default function UsersScreen() {
   const [busy, setBusy] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [roleFor, setRoleFor] = useState<UserItem | null>(null);
+  const [enrollFor, setEnrollFor] = useState<UserItem | null>(null);
 
   const onAdd = async () => {
     if (!newEmail.trim() || newPwd.length < 8) {
@@ -158,6 +161,16 @@ export default function UsersScreen() {
                 </Pressable>
                 <Pressable
                   style={styles.menuItem}
+                  onPress={() => { setMenuFor(null); setEnrollFor(item); }}
+                  testID={`user-enroll-face-${item.id}`}
+                >
+                  <MaterialCommunityIcons name="face-recognition" size={16} color={C.electricViolet} />
+                  <Text style={styles.menuLabel}>
+                    {item.has_face_embedding ? 'Re-enroll face' : 'Enroll face'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItem}
                   onPress={() => { setMenuFor(null); setRoleFor(item); }}
                 >
                   <MaterialCommunityIcons name="account-cog" size={16} color={C.primaryAccent} />
@@ -248,6 +261,13 @@ export default function UsersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Enroll face modal */}
+      <EnrollFaceModal
+        target={enrollFor}
+        onClose={() => setEnrollFor(null)}
+        onSuccess={() => { setEnrollFor(null); vm.refresh(); }}
+      />
     </View>
   );
 }
@@ -260,6 +280,131 @@ function KpiTile({ label, value, color }: { label: string; value: number; color:
     </View>
   );
 }
+
+interface EnrollProps {
+  target: UserItem | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function EnrollFaceModal({ target, onClose, onSuccess }: EnrollProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [running, setRunning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [score, setScore] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (target && Platform.OS === 'web') {
+      setRunning(false); setBusy(false); setErr(null); setScore(null);
+      (async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+            audio: false,
+          });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
+            setRunning(true);
+          }
+        } catch (e) {
+          setErr(e instanceof Error ? e.message : 'Could not access webcam');
+        }
+      })();
+    }
+    return () => {
+      if (videoRef.current?.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [target]);
+
+  const capture = async () => {
+    if (!videoRef.current || !target) return;
+    setBusy(true); setErr(null);
+    const cap = document.createElement('canvas');
+    cap.width = videoRef.current.videoWidth || 640;
+    cap.height = videoRef.current.videoHeight || 480;
+    const ctx = cap.getContext('2d');
+    if (!ctx) { setBusy(false); return; }
+    ctx.drawImage(videoRef.current, 0, 0, cap.width, cap.height);
+    const dataUrl = cap.toDataURL('image/jpeg', 0.85);
+    try {
+      const token = await getStoredToken();
+      const res = await fetch(`${getApiBase()}/api/v1/face/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ image: dataUrl, user_id: target.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(data.detail || `Enrollment failed (${res.status})`);
+      } else {
+        setScore(data.det_score ?? null);
+        setTimeout(() => onSuccess(), 1100);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible={!!target} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={enrollStyles.scrim} testID="user-enroll-modal">
+        <View style={enrollStyles.modal}>
+          <SectionEyebrow>Biometrics</SectionEyebrow>
+          <Text style={enrollStyles.title}>
+            {target?.has_face_embedding ? 'Re-enroll' : 'Enroll'} face — {target?.email}
+          </Text>
+          <View style={enrollStyles.frame}>
+            {Platform.OS === 'web' ? (
+              // @ts-expect-error — DOM element on web
+              <video ref={videoRef as any} autoPlay playsInline muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                  background: '#000', transform: 'scaleX(-1)' }}
+              />
+            ) : null}
+            {score != null ? (
+              <View style={enrollStyles.success}>
+                <MaterialCommunityIcons name="check-decagram" size={36} color="#06B6D4" />
+                <Text style={enrollStyles.successText}>ENROLLED · {(score * 100).toFixed(1)}%</Text>
+              </View>
+            ) : null}
+          </View>
+          {err ? <Text style={enrollStyles.err}>{err}</Text> : null}
+          <View style={enrollStyles.actions}>
+            <VxButton label="Cancel" variant="secondary" onPress={onClose} testID="user-enroll-cancel" />
+            <VxButton
+              label={busy ? 'ENROLLING…' : 'CAPTURE & ENROLL'}
+              onPress={capture}
+              busy={busy}
+              disabled={!running || score != null}
+              testID="user-enroll-confirm"
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const enrollStyles = StyleSheet.create({
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: Space.lg },
+  modal: { backgroundColor: C.surface, borderRadius: Radius.lg, padding: Space.lg,
+    maxWidth: 560, width: '100%', alignSelf: 'center', borderWidth: 1, borderColor: C.border, gap: Space.md },
+  title: { ...TextStyles.h3, color: C.text, marginTop: Space.xs },
+  frame: { aspectRatio: 4 / 3, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border,
+    overflow: 'hidden', backgroundColor: '#000', position: 'relative' },
+  success: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: 'rgba(6,182,212,0.22)' },
+  successText: { ...TextStyles.h4, color: '#06B6D4', fontFamily: F.heading, letterSpacing: 3 },
+  err: { ...TextStyles.bodySmall, color: C.danger, fontFamily: F.mono, fontSize: 12 },
+  actions: { flexDirection: 'row', gap: Space.sm, justifyContent: 'flex-end', flexWrap: 'wrap' },
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
