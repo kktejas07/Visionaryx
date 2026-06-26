@@ -40,7 +40,11 @@ export default function UsersScreen() {
 
   const openMenu = (id: string, e: any) => {
     if (menuFor === id) { closeMenu(); return; }
-    setMenuPos({ top: e.nativeEvent.pageY, left: e.nativeEvent.pageX - 200 });
+    const screenW = typeof window !== 'undefined' ? window.innerWidth : 400;
+    const menuW = 220;
+    let left = e.nativeEvent.pageX - menuW + 20;
+    left = Math.max(4, Math.min(left, screenW - menuW - 4));
+    setMenuPos({ top: e.nativeEvent.pageY, left });
     setMenuFor(id);
   };
 
@@ -173,7 +177,7 @@ export default function UsersScreen() {
       {menuFor && menuPos ? (
         <View style={styles.menuOverlayScrim}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
-          <View style={[styles.menu, { position: 'absolute', top: menuPos.top + 4, left: Math.max(4, menuPos.left - 200) }]} testID={`user-menu-open-${menuFor}`}>
+          <View style={[styles.menu, { position: 'absolute', top: menuPos.top + 4, left: menuPos.left }]} testID={`user-menu-open-${menuFor}`}>
             {vm.filtered.find((i) => i.id === menuFor) ? (
               <>
                 <Pressable style={styles.menuItem} onPress={() => {
