@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View, Text, useWindowDimensions, Pressable } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, Text, useWindowDimensions, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getStoredToken, streamMjpegUrl, streamH264WsUrl, api } from '@/lib/api';
+import { getStoredToken, streamMjpegUrl, api } from '@/lib/api';
 import { Stitch, FontFamily } from '@/constants/stitchTheme';
 import MjpegStreamView from '@/components/MjpegStreamView';
-import H264StreamView from '@/components/H264StreamView';
 
 type CameraDetails = {
   id: string;
@@ -16,10 +15,8 @@ export default function CameraViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { height, width } = useWindowDimensions();
-  const [mjpegUri, setMjpegUri] = useState<string | null>(null);
-  const [h264WsUrl, setH264WsUrl] = useState<string | null>(null);
+  const [uri, setUri] = useState<string | null>(null);
   const [cam, setCam] = useState<CameraDetails | null>(null);
-  const isWeb = Platform.OS === 'web';
 
   useEffect(() => {
     let cancelled = false;
@@ -32,10 +29,7 @@ export default function CameraViewerScreen() {
         if (cancelled) return;
         setCam(details);
         if (token) {
-          setMjpegUri(streamMjpegUrl(id, token));
-          if (isWeb) {
-            setH264WsUrl(streamH264WsUrl(id, token));
-          }
+          setUri(streamMjpegUrl(id, token));
         }
       } catch (e) {
         console.error('Failed to load camera', e);
@@ -49,18 +43,14 @@ export default function CameraViewerScreen() {
   return (
     <View style={[styles.root, { backgroundColor: Stitch.surface }]}>
       <View style={styles.viewerContainer}>
-        {(!mjpegUri && !h264WsUrl) ? (
+        {!uri ? (
           <View style={styles.loader}>
             <ActivityIndicator size="large" color={Stitch.primary} />
             <Text style={styles.loaderText}>Establishing Secure Connection...</Text>
           </View>
         ) : (
           <View style={styles.feedWrapper}>
-            {isWeb && h264WsUrl ? (
-              <H264StreamView wsUrl={h264WsUrl} style={styles.web} />
-            ) : (
-              <MjpegStreamView uri={mjpegUri || ''} style={styles.web} />
-            )}
+            <MjpegStreamView uri={uri} style={styles.web} />
             {/* Surveillance Overlays */}
             <View style={styles.overlayTop}>
               <View style={styles.livePill}>
