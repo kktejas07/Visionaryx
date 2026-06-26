@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, Modal, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import { useCamerasViewModel } from '@/viewmodels';
 import type { CameraModel } from '@/viewmodels/models';
@@ -23,6 +24,7 @@ export default function CamerasScreen() {
   const vm = useCamerasViewModel();
   const { user } = useAuth();
   const colors = useColors();
+  const router = useRouter();
   const isAdmin = isAdminRole(user?.role);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -32,9 +34,9 @@ export default function CamerasScreen() {
   const [viewing, setViewing] = useState<CameraModel | null>(null);
   const [editing, setEditing] = useState<CameraModel | null>(null);
 
+  const [busy, setBusy] = useState(false);
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
-  const [busy, setBusy] = useState(false);
 
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
@@ -215,6 +217,13 @@ export default function CamerasScreen() {
                     testID="add-wireless-camera-btn"
                   />
                 </>
+                <VxButton
+                  label="Add"
+                  icon={<MaterialCommunityIcons name="plus" size={14} color="#fff" />}
+                  onPress={() => setAddOpen(true)}
+                  testID="add-camera-btn"
+                  size="md"
+                />
               ) : null}
             </View>
 
@@ -258,22 +267,29 @@ export default function CamerasScreen() {
                 accessibilityLabel="View camera"
               >
                 <MaterialCommunityIcons name="eye-outline" size={15} color={colors.primaryAccent} />
+        renderItem={({ item }) => (
+          <View style={styles.row} testID={`camera-row-${item.id}`}>
+            <View style={[styles.statusBlock, { backgroundColor: item.is_enabled && item.status === 'active' ? C.success : C.warning }]} />
+            <View style={styles.iconWrap}>
+              <MaterialCommunityIcons name="cctv" size={18} color={C.primaryAccent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowName} numberOfLines={1}>{item.camera_name}</Text>
+              <Text style={styles.rowUrl} numberOfLines={1}>{item.rtsp_url}</Text>
+            </View>
+            <View style={styles.actionRow}>
+              <Pressable onPress={() => router.push(`/camera/${item.id}`)} style={styles.actionBtn} hitSlop={6}>
+                <MaterialCommunityIcons name="eye-outline" size={16} color={C.primaryAccent} />
               </Pressable>
               {isAdmin ? (
-                <Pressable
-                  onPress={() => openEdit(item)}
-                  style={[styles.iconBtn, { borderColor: colors.border }]}
-                  hitSlop={6}
-                  testID={`camera-edit-${item.id}`}
-                  accessibilityLabel="Edit camera"
-                >
-                  <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.cyan} />
+                <Pressable onPress={() => openEdit(item)} style={styles.actionBtn} hitSlop={6}>
+                  <MaterialCommunityIcons name="pencil-outline" size={16} color={C.textMuted} />
                 </Pressable>
               ) : null}
               <Switch
                 value={item.is_enabled}
                 onValueChange={(v) => vm.toggle(item.id, v).catch((e) => Alert.alert('Error', e?.message))}
-                trackColor={{ false: colors.surface3, true: colors.primary }}
+                trackColor={{ false: C.surface3, true: C.primary }}
                 thumbColor="#fff"
                 disabled={!isAdmin}
                 testID={`camera-toggle-${item.id}`}
@@ -281,17 +297,17 @@ export default function CamerasScreen() {
               {isAdmin ? (
                 <Pressable
                   onPress={() => onRemove(item)}
-                  style={[styles.iconBtn, { borderColor: colors.border }]}
+                  style={[styles.iconBtn, { borderColor: C.border }]}
                   hitSlop={6}
                   testID={`camera-del-${item.id}`}
                   accessibilityLabel="Delete camera"
                 >
-                  <MaterialCommunityIcons name="trash-can-outline" size={15} color={colors.danger} />
+                  <MaterialCommunityIcons name="trash-can-outline" size={15} color={C.danger} />
                 </Pressable>
               ) : null}
             </View>
-          );
-        }}
+          </View>
+        )}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textMuted }]}>
             {vm.loading ? 'Loading…' : 'No cameras configured.'}
@@ -485,10 +501,10 @@ export default function CamerasScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
   pad: { padding: Space.lg, paddingBottom: 100, maxWidth: 1200, width: '100%', alignSelf: 'center' },
-  mono: { fontFamily: F.mono },
+  mono: { fontFamily: F.mono, color: C.text },
   searchRow: { flexDirection: 'row', gap: Space.sm, marginTop: Space.lg, marginBottom: Space.md, alignItems: 'center', flexWrap: 'wrap' },
-  searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.xs, borderRadius: Radius.sm, borderWidth: 1, paddingLeft: Space.sm, minWidth: 200 },
-  searchInput: { paddingLeft: Space.sm, backgroundColor: 'transparent', borderWidth: 0 },
+  searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.xs, minWidth: 200 },
+  searchInput: { paddingLeft: Space.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -500,16 +516,19 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   statusBlock: { width: 3, alignSelf: 'stretch', borderRadius: 2 },
-  iconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  rowName: { ...TextStyles.bodySmall, fontFamily: F.bodySemibold },
-  rowUrl: { ...TextStyles.caption, fontFamily: F.mono, marginTop: 2 },
+  iconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: C.primaryFaint, alignItems: 'center', justifyContent: 'center' },
+  rowName: { ...TextStyles.bodySmall, color: C.text, fontFamily: F.bodySemibold },
+  rowUrl: { ...TextStyles.caption, color: C.textMuted, fontFamily: F.mono, marginTop: 2 },
   iconBtn: {
     width: 30, height: 30,
     borderRadius: Radius.sm,
     borderWidth: 1,
+    borderColor: C.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  empty: { ...TextStyles.body, padding: Space.xxl, textAlign: 'center' },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actionBtn: { padding: 6 },
+  empty: { ...TextStyles.body, color: C.textMuted, padding: Space.xxl, textAlign: 'center' },
 
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: Space.lg },
   modal: { borderRadius: Radius.lg, padding: Space.lg, maxWidth: 480, width: '100%', alignSelf: 'center', borderWidth: 1 },

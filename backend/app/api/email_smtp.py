@@ -1,5 +1,6 @@
 """
 Admin SMTP / email settings and test send (stored in app_settings).
+Supports SMTP and Postal HTTP API providers.
 """
 from __future__ import annotations
 
@@ -14,13 +15,14 @@ from app.api.deps import AdminUser
 from app.core.config import get_settings
 from app.database.connection import get_db
 from app.services.smtp_config_store import load_smtp_settings, save_smtp_settings
-from app.services.smtp_mailer import public_dashboard_base_for_links, public_smtp_view, send_smtp_mail_sync
+from app.services.smtp_mailer import public_dashboard_base_for_links, public_smtp_view, send_email_sync
 from app.services.audit_service import record_audit
 
 router = APIRouter()
 
 
 class EmailSettingsResponse(BaseModel):
+    provider: str
     enabled: bool
     host: str
     port: int
@@ -31,12 +33,13 @@ class EmailSettingsResponse(BaseModel):
     use_ssl: bool
     public_base_url: str
     password_configured: bool
-    """True if a password is stored (value never returned)."""
+    postal_host: str
+    postal_api_key_configured: bool
     public_dashboard_url_default: str
-    """Env default for enrollment links when public_base_url is empty."""
 
 
 class EmailSettingsPatch(BaseModel):
+    provider: Optional[str] = Field(default=None, description="'smtp' or 'postal'")
     enabled: Optional[bool] = None
     host: Optional[str] = None
     port: Optional[int] = None
@@ -53,6 +56,14 @@ class EmailSettingsPatch(BaseModel):
         default=None,
         description="Dashboard base URL for enrollment links (e.g. https://visioryx.example.com). Empty = use env PUBLIC_DASHBOARD_URL.",
     )
+    postal_host: Optional[str] = Field(
+        default=None,
+        description="Postal server URL (e.g. https://postal.example.com)",
+    )
+    postal_api_key: Optional[str] = Field(
+        default=None,
+        description="Postal API key. Omit to keep existing. Send empty string to clear.",
+    )
 
 
 class EmailTestRequest(BaseModel):
@@ -60,8 +71,6 @@ class EmailTestRequest(BaseModel):
 
 
 class EnrollmentBaseUrlResponse(BaseModel):
-    """Effective base URL for /enroll?token=… (matches emailed links)."""
-
     base_url: str
 
 
@@ -70,7 +79,6 @@ async def get_enrollment_base_url(
     current_user: AdminUser,
     db: AsyncSession = Depends(get_db),
 ):
-    """Public dashboard base for QR codes — same logic as enrollment emails (SMTP public URL or PUBLIC_DASHBOARD_URL)."""
     cfg = await load_smtp_settings(db)
     base = public_dashboard_base_for_links(cfg)
     return EnrollmentBaseUrlResponse(base_url=base)
@@ -80,6 +88,7 @@ def _response_from_cfg(cfg: dict) -> EmailSettingsResponse:
     pub = public_smtp_view(cfg)
     settings = get_settings()
     return EmailSettingsResponse(
+        provider=pub.get("provider", "smtp"),
         enabled=pub["enabled"],
         host=pub["host"],
         port=pub["port"],
@@ -90,6 +99,8 @@ def _response_from_cfg(cfg: dict) -> EmailSettingsResponse:
         use_ssl=pub["use_ssl"],
         public_base_url=pub["public_base_url"],
         password_configured=pub["password_configured"],
+        postal_host=pub.get("postal_host", ""),
+        postal_api_key_configured=pub["postal_api_key_configured"],
         public_dashboard_url_default=settings.PUBLIC_DASHBOARD_URL,
     )
 
@@ -110,6 +121,8 @@ async def patch_email_settings(
     db: AsyncSession = Depends(get_db),
 ):
     cfg = await load_smtp_settings(db)
+    if body.provider is not None:
+        cfg["provider"] = body.provider
     if body.enabled is not None:
         cfg["enabled"] = body.enabled
     if body.host is not None:
@@ -133,6 +146,13 @@ async def patch_email_settings(
         cfg["use_ssl"] = body.use_ssl
     if body.public_base_url is not None:
         cfg["public_base_url"] = body.public_base_url.strip()
+    if body.postal_host is not None:
+        cfg["postal_host"] = body.postal_host.strip()
+    if body.postal_api_key is not None:
+        if body.postal_api_key == "":
+            cfg["postal_api_key"] = ""
+        else:
+            cfg["postal_api_key"] = body.postal_api_key
 
     if cfg.get("use_ssl") and cfg.get("use_tls"):
         cfg["use_tls"] = False
@@ -144,7 +164,10 @@ async def patch_email_settings(
         action="settings.email.patch",
         resource_type="settings",
         resource_id=None,
-        detail={"smtp_host": (cfg.get("host") or "")[:255], "enabled": bool(cfg.get("enabled"))},
+        detail={
+            "provider": (cfg.get("provider") or "smtp")[:10],
+            "enabled": bool(cfg.get("enabled")),
+        },
     )
     await db.commit()
     return _response_from_cfg(cfg)
@@ -158,16 +181,12 @@ async def post_email_test(
 ):
     cfg = await load_smtp_settings(db)
     if not cfg.get("enabled"):
-        raise HTTPException(status_code=400, detail="SMTP is disabled. Enable it and save first.")
+        raise HTTPException(status_code=400, detail="Email is disabled. Enable it and save first.")
     subject = f"{get_settings().APP_NAME} — test email"
-    text = "Your SMTP settings are working. This is a test message from Visioryx."
+    text = "Your email settings are working. This is a test message from Visioryx."
     html = f"<p>{text}</p>"
     try:
-        await asyncio.to_thread(send_smtp_mail_sync, cfg, body.to, subject, text, html)
+        await asyncio.to_thread(send_email_sync, cfg, body.to, subject, text, html)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Send failed: {e!s}") from e
     return {"ok": True, "message": f"Test email sent to {body.to}"}
-
-
-# Allow GET for operators? No - admin only for email settings. Surveillance users don't need this route.
-# If someone hits GET without admin, 403 from AdminUser.

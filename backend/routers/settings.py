@@ -77,3 +77,26 @@ async def settings_email_test(
     if not to:
         raise HTTPException(status_code=400, detail="Missing 'to' address")
     return {"ok": True, "to": to, "mocked": True}
+
+
+# ---------------------------------------------------------------------------
+# Bridge (stub — full implementation requires the PostgreSQL backend)
+# ---------------------------------------------------------------------------
+@router.get("/bridge")
+async def settings_bridge(_: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    return {
+        "enabled": False,
+        "token": None,
+        "container_name": None,
+        "agent_url": None,
+    }
+
+
+@router.post("/bridge/generate")
+async def settings_bridge_generate(_: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    return {"ok": True, "token": None, "agent_url": None}
+
+
+@router.post("/bridge/revoke")
+async def settings_bridge_revoke(_: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    return {"ok": True}

@@ -1,8 +1,5 @@
-# Git
 .git
 .gitignore
-
-# Python
 __pycache__
 *.py[cod]
 *$py.class
@@ -12,20 +9,23 @@ venv
 .venv
 *.egg-info
 .eggs
-
-# Node
 node_modules
 .next
 .npm
-
-# IDE
 .idea
 .vscode
 *.swp
-
-# Env (use .env.docker)
 backend/.env
-
-# Docs and misc
+backend/.env.example
 *.md
 .DS_Store
+test_reports/
+memory/
+.emergent/
+.cursorindexingignore
+.gitconfig
+mobile/
+mobile-builds/
+_legacy_frontend_nextjs/
+scripts/
+start-dev.sh

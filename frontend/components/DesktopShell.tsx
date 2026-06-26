@@ -110,7 +110,7 @@ function SideNav() {
       </View>
       <Text style={styles.tagline}>{Brand.tagline}</Text>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Space.lg }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Space.sm }}>
         <Text style={styles.sectionLbl}>WORKSPACE</Text>
         {visiblePrimary.map((item) => {
           const active = isActive(item.href);
@@ -229,12 +229,13 @@ const styles = StyleSheet.create({
   main: { flex: 1, overflow: 'hidden' },
   side: {
     width: 288,
+    width: 300,
     backgroundColor: C.surface,
     borderRightWidth: 1,
     borderRightColor: C.border,
     paddingHorizontal: Space.md,
     paddingTop: Space.xl,
-    paddingBottom: Space.md,
+    paddingBottom: 0,
   },
   brand: { paddingHorizontal: Space.sm, marginBottom: Space.sm },
   tagline: {
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm, marginBottom: 2, position: 'relative',
   },
   navRowActive: { backgroundColor: C.primaryFaint },
-  activeBar: { position: 'absolute', left: -Space.md, top: 6, bottom: 6, width: 3, backgroundColor: C.primaryAccent, borderTopRightRadius: 2, borderBottomRightRadius: 2 },
+  activeBar: { position: 'absolute', left: -Space.md, top: 6, bottom: 6, width: 3, backgroundColor: C.primaryAccent, borderTopRightRadius: 2, borderBottomRightRadius: 2, zIndex: 1 },
   navIconBox: {
     width: 28, height: 28, borderRadius: Radius.sm,
     backgroundColor: 'transparent',
@@ -270,6 +271,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface2, borderRadius: Radius.md,
     paddingHorizontal: Space.sm, paddingVertical: Space.sm,
     borderWidth: 1, borderColor: C.border,
+    marginTop: Space.sm, marginBottom: Space.sm,
   },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   avatarLetter: { ...TextStyles.bodySmall, color: '#fff', fontFamily: F.heading },

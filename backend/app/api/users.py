@@ -24,7 +24,7 @@ from app.services.face_enrollment import (
     build_embedding_from_image_bytes_list,
     save_primary_face_image,
 )
-from app.services.smtp_mailer import public_dashboard_base_for_links, send_smtp_mail_sync
+from app.services.smtp_mailer import public_dashboard_base_for_links, send_email_sync
 from app.services.audit_service import record_audit
 
 router = APIRouter()
@@ -206,7 +206,7 @@ async def send_enrollment_email(
     if not cfg.get("enabled"):
         raise HTTPException(
             status_code=400,
-            detail="SMTP is disabled. Configure and enable email under Settings → Email & SMTP.",
+            detail="Email is disabled. Configure and enable email under Settings → Email configuration.",
         )
     settings = get_settings()
     token = create_enrollment_token(user_id)
@@ -228,7 +228,7 @@ async def send_enrollment_email(
         "<p>If you did not expect this message, you can ignore it.</p>"
     )
     try:
-        await asyncio.to_thread(send_smtp_mail_sync, cfg, user.email, subject, text, html)
+        await asyncio.to_thread(send_email_sync, cfg, user.email, subject, text, html)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Email send failed: {e!s}") from e
     return {"ok": True, "sent_to": user.email, "enroll_url": link}

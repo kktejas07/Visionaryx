@@ -236,8 +236,15 @@ export async function api<T>(path: string, opts?: RequestInit, timeoutMs: number
   return res.json();
 }
 
-export function streamMjpegUrl(cameraId: number, token: string): string {
+export function streamMjpegUrl(cameraId: string, token: string): string {
   const base = getApiBase();
   const q = new URLSearchParams({ token });
   return `${base}/api/v1/stream/${cameraId}/mjpeg?${q.toString()}`;
+}
+
+export function streamH264WsUrl(cameraId: string, token: string): string {
+  const base = getApiBase();
+  const wsBase = base.replace(/^http/, 'ws');
+  const q = new URLSearchParams({ token });
+  return `${wsBase}/api/v1/stream/${cameraId}/h264?${q.toString()}`;
 }

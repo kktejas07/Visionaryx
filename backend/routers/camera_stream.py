@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import io
 import math
-import os
 import time
 from datetime import datetime, timezone
 from typing import Any

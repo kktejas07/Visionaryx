@@ -1,9 +1,7 @@
-# Visioryx - Backend Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# System dependencies: OpenCV, AI libs, and build tools for insightface (Cython)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     g++ \
@@ -18,17 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies: cache pip, install torch CPU first to avoid CUDA (~3GB)
 COPY backend/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
     pip install torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install -r requirements.txt
 
-# Application (backend/ includes app/, scripts/, alembic, etc.)
 COPY backend/ .
 
-# Create storage directories
 RUN mkdir -p storage/registered_faces storage/unknown_faces storage/snapshots models
 
 ENV PYTHONPATH=/app

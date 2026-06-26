@@ -13,6 +13,7 @@ import { getApiBase } from '@/lib/config';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput, ErrorBanner } from '@/components/vx';
+import MobileBackButton from '@/components/MobileBackButton';
 
 const ROLES = [
   { value: 'admin', label: 'Admin', desc: 'Full system access' },
@@ -32,8 +33,21 @@ export default function UsersScreen() {
   const [newRole, setNewRole] = useState('operator');
   const [busy, setBusy] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [roleFor, setRoleFor] = useState<UserItem | null>(null);
   const [enrollFor, setEnrollFor] = useState<UserItem | null>(null);
+
+  const closeMenu = () => { setMenuFor(null); setMenuPos(null); };
+
+  const openMenu = (id: string, e: any) => {
+    if (menuFor === id) { closeMenu(); return; }
+    const screenW = typeof window !== 'undefined' ? window.innerWidth : 400;
+    const menuW = 220;
+    let left = e.nativeEvent.pageX - menuW + 20;
+    left = Math.max(4, Math.min(left, screenW - menuW - 4));
+    setMenuPos({ top: e.nativeEvent.pageY, left });
+    setMenuFor(id);
+  };
 
   const onAdd = async () => {
     if (!newEmail.trim() || newPwd.length < 8) {
@@ -80,6 +94,7 @@ export default function UsersScreen() {
     return (
       <View style={styles.root}>
         <CommandBackground />
+        <MobileBackButton />
         <View style={styles.pad}>
           <SectionEyebrow>Access</SectionEyebrow>
           <ScreenTitle>Admin only</ScreenTitle>
@@ -92,6 +107,7 @@ export default function UsersScreen() {
   return (
     <View style={styles.root} testID="users-screen">
       <CommandBackground />
+      <MobileBackButton />
       <FlatList
         data={vm.filtered}
         keyExtractor={(i) => i.id}
@@ -145,7 +161,7 @@ export default function UsersScreen() {
               <Text style={styles.roleText}>{(item.role || 'operator').toUpperCase()}</Text>
             </View>
             <Pressable
-              onPress={() => setMenuFor(menuFor === item.id ? null : item.id)}
+              onPress={(e) => openMenu(item.id, e)}
               hitSlop={6}
               style={styles.menuBtn}
               testID={`user-menu-${item.id}`}
@@ -153,36 +169,7 @@ export default function UsersScreen() {
               <MaterialCommunityIcons name="dots-vertical" size={18} color={C.textMuted} />
             </Pressable>
 
-            {menuFor === item.id ? (
-              <View style={styles.menu} testID={`user-menu-open-${item.id}`}>
-                <Pressable style={styles.menuItem} onPress={() => onSendLink(item)}>
-                  <MaterialCommunityIcons name="email-outline" size={16} color={C.primaryAccent} />
-                  <Text style={styles.menuLabel}>Send enrollment link</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.menuItem}
-                  onPress={() => { setMenuFor(null); setEnrollFor(item); }}
-                  testID={`user-enroll-face-${item.id}`}
-                >
-                  <MaterialCommunityIcons name="face-recognition" size={16} color={C.electricViolet} />
-                  <Text style={styles.menuLabel}>
-                    {item.has_face_embedding ? 'Re-enroll face' : 'Enroll face'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={styles.menuItem}
-                  onPress={() => { setMenuFor(null); setRoleFor(item); }}
-                >
-                  <MaterialCommunityIcons name="account-cog" size={16} color={C.primaryAccent} />
-                  <Text style={styles.menuLabel}>Change role</Text>
-                </Pressable>
-                <View style={styles.menuDivider} />
-                <Pressable style={styles.menuItem} onPress={() => onDelete(item)}>
-                  <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.danger} />
-                  <Text style={[styles.menuLabel, { color: C.danger }]}>Delete</Text>
-                </Pressable>
-              </View>
-            ) : null}
+            {/* single menu overlay at root level */}
           </View>
         )}
         ListEmptyComponent={
@@ -190,6 +177,53 @@ export default function UsersScreen() {
         }
       />
 
+      {menuFor && menuPos ? (
+        <View style={styles.menuOverlayScrim}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
+          <View style={[styles.menu, { position: 'absolute', top: menuPos.top + 4, left: menuPos.left }]} testID={`user-menu-open-${menuFor}`}>
+            {vm.filtered.find((i) => i.id === menuFor) ? (
+              <>
+                <Pressable style={styles.menuItem} onPress={() => {
+                  const u = vm.filtered.find((i) => i.id === menuFor);
+                  if (u) onSendLink(u);
+                }}>
+                  <MaterialCommunityIcons name="email-outline" size={16} color={C.primaryAccent} />
+                  <Text style={styles.menuLabel}>Send enrollment link</Text>
+                </Pressable>
+                {(() => {
+                  const u = vm.filtered.find(i => i.id === menuFor);
+                  if (!u) return null;
+                  return (
+                    <Pressable style={styles.menuItem} onPress={() => {
+                      setMenuFor(null); setMenuPos(null); setEnrollFor(u);
+                    }} testID={`user-enroll-face-${menuFor}`}>
+                      <MaterialCommunityIcons name="face-recognition" size={16} color={C.electricViolet} />
+                      <Text style={styles.menuLabel}>
+                        {u.has_face_embedding ? 'Re-enroll face' : 'Enroll face'}
+                      </Text>
+                    </Pressable>
+                  );
+                })()}
+                <Pressable style={styles.menuItem} onPress={() => {
+                  const u = vm.filtered.find((i) => i.id === menuFor);
+                  if (u) { setMenuFor(null); setMenuPos(null); setRoleFor(u); }
+                }}>
+                  <MaterialCommunityIcons name="account-cog" size={16} color={C.primaryAccent} />
+                  <Text style={styles.menuLabel}>Change role</Text>
+                </Pressable>
+                <View style={styles.menuDivider} />
+                <Pressable style={styles.menuItem} onPress={() => {
+                  const u = vm.filtered.find((i) => i.id === menuFor);
+                  if (u) onDelete(u);
+                }}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.danger} />
+                  <Text style={[styles.menuLabel, { color: C.danger }]}>Delete</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
       {/* Add modal */}
       <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
         <View style={styles.scrim} testID="add-user-modal">
@@ -436,11 +470,15 @@ const styles = StyleSheet.create({
   rolePill: { backgroundColor: C.primaryFaint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.sm },
   roleText: { ...TextStyles.label, color: C.primaryAccent, fontSize: 9, letterSpacing: 1.2 },
   menuBtn: { padding: 6 },
+  menuOverlayScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    zIndex: 999,
+  },
   menu: {
-    position: 'absolute', right: 12, top: 56,
     backgroundColor: C.surface2, borderRadius: Radius.md,
     borderWidth: 1, borderColor: C.border,
-    padding: 6, minWidth: 220, zIndex: 10,
+    padding: 6, minWidth: 220,
   },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, padding: Space.sm, borderRadius: Radius.sm },
   menuLabel: { ...TextStyles.bodySmall, color: C.text },

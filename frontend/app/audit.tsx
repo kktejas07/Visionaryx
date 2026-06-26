@@ -10,6 +10,7 @@ import { useRealtimeTick } from '@/contexts/RealtimeContext';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput } from '@/components/vx';
+import MobileBackButton from '@/components/MobileBackButton';
 
 interface Row {
   id: string;
@@ -96,6 +97,7 @@ export default function AuditScreen() {
   return (
     <View style={styles.root} testID="audit-screen">
       <CommandBackground />
+      <MobileBackButton />
       <FlatList
         data={items}
         keyExtractor={(i) => i.id}

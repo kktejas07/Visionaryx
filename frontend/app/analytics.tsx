@@ -10,6 +10,7 @@ import { useRealtimeTick } from '@/contexts/RealtimeContext';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { VxCard, SectionEyebrow, ScreenTitle, ScreenSub } from '@/components/vx';
+import MobileBackButton from '@/components/MobileBackButton';
 
 interface Trend { date: string; count: number }
 interface StatusTrend { date: string; known: number; unknown: number }
@@ -61,6 +62,7 @@ export default function AnalyticsScreen() {
   return (
     <View style={styles.root} testID="analytics-screen">
       <CommandBackground />
+      <MobileBackButton />
       <ScrollView
         contentContainerStyle={styles.pad}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primaryAccent} />}

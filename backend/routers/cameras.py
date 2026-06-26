@@ -31,6 +31,17 @@ async def list_cameras(_: dict[str, Any] = Depends(current_user)) -> list[dict[s
     return [_camera_public(d) for d in docs]
 
 
+@router.get("/cameras/{camera_id}")
+async def get_camera(
+    camera_id: str, _: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    db = get_db()
+    doc = await db.cameras.find_one({"_id": camera_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    return _camera_public(doc)
+
+
 @router.post("/cameras", status_code=201)
 async def create_camera(body: CameraIn, _: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     db = get_db()

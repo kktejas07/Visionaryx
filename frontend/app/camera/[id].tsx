@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, useWindowDimensions, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView } from 'react-native-webview';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getStoredToken, streamMjpegUrl, api } from '@/lib/api';
 import { Stitch, FontFamily } from '@/constants/stitchTheme';
+import MjpegStreamView from '@/components/MjpegStreamView';
 
 type CameraDetails = {
-  id: number;
+  id: string;
   camera_name: string;
 };
 
 export default function CameraViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const cameraId = Number(id);
   const router = useRouter();
   const { height, width } = useWindowDimensions();
   const [uri, setUri] = useState<string | null>(null);
@@ -25,12 +24,12 @@ export default function CameraViewerScreen() {
       try {
         const [token, details] = await Promise.all([
           getStoredToken(),
-          api<CameraDetails>(`/api/v1/cameras/${cameraId}`)
+          api<CameraDetails>(`/api/v1/cameras/${id}`)
         ]);
         if (cancelled) return;
         setCam(details);
         if (token) {
-          setUri(streamMjpegUrl(cameraId, token));
+          setUri(streamMjpegUrl(id, token));
         }
       } catch (e) {
         console.error('Failed to load camera', e);
@@ -39,7 +38,7 @@ export default function CameraViewerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [cameraId]);
+  }, [id]);
 
   return (
     <View style={[styles.root, { backgroundColor: Stitch.surface }]}>
@@ -51,14 +50,7 @@ export default function CameraViewerScreen() {
           </View>
         ) : (
           <View style={styles.feedWrapper}>
-            <WebView
-              source={{ uri }}
-              style={styles.web}
-              scrollEnabled={false}
-              allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction={false}
-              originWhitelist={['*']}
-            />
+            <MjpegStreamView uri={uri} style={styles.web} />
             {/* Surveillance Overlays */}
             <View style={styles.overlayTop}>
               <View style={styles.livePill}>
@@ -81,7 +73,7 @@ export default function CameraViewerScreen() {
       
       {/* Controls */}
       <View style={styles.controls}>
-         <Pressable style={styles.controlBtn} onPress={() => router.back()}>
+         <Pressable style={styles.controlBtn} onPress={() => router.replace('/(tabs)/cameras')}>
             <MaterialCommunityIcons name="chevron-left" size={28} color="#fff" />
             <Text style={styles.controlText}>Back</Text>
          </Pressable>

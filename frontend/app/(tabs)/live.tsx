@@ -1,7 +1,7 @@
 /**
- * Live grid — multi-camera tiles. Web shows HLS placeholders, native shows
- * a status grid. Uses `useCamerasViewModel` for data.
+ * Live grid — multi-camera tiles with MJPEG previews.
  */
+import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,13 +13,20 @@ import { useRealtimeConnected } from '@/contexts/RealtimeContext';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxCard } from '@/components/vx';
 import { FaceLab } from '@/components/FaceLab';
+import { getStoredToken, streamMjpegUrl } from '@/lib/api';
+import MjpegStreamView from '@/components/MjpegStreamView';
 
 export default function LiveScreen() {
   const vm = useCamerasViewModel();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const connected = useRealtimeConnected();
+  const [token, setToken] = useState<string | null>(null);
   const cols = width >= Breakpoint.wide ? 4 : width >= Breakpoint.desktop ? 3 : width >= Breakpoint.tablet ? 2 : 1;
+
+  useEffect(() => {
+    getStoredToken().then(setToken);
+  }, []);
 
   return (
     <View style={styles.root} testID="live-screen">
@@ -48,7 +55,7 @@ export default function LiveScreen() {
         <View style={[styles.grid, { gap: Space.md }]}>
           {vm.items.map((c) => (
             <View key={c.id} style={[styles.tileSlot, { flexBasis: `${100 / cols - 1}%`, minWidth: 240 }]}>
-              <CameraTile cam={c} onPress={() => router.push(`/camera/${c.id}` as any)} />
+              <CameraTile cam={c} token={token} onPress={() => router.push(`/camera/${c.id}` as any)} />
             </View>
           ))}
           {vm.items.length === 0 && !vm.loading ? (
@@ -65,8 +72,10 @@ export default function LiveScreen() {
   );
 }
 
-function CameraTile({ cam, onPress }: { cam: CameraModel; onPress: () => void }) {
+function CameraTile({ cam, token, onPress }: { cam: CameraModel; token: string | null; onPress: () => void }) {
   const online = cam.is_enabled && cam.status === 'active';
+  const streamUri = token ? streamMjpegUrl(cam.id, token) : null;
+
   return (
     <Pressable
       style={[styles.tile, !online && styles.tileOffline]}
@@ -74,20 +83,18 @@ function CameraTile({ cam, onPress }: { cam: CameraModel; onPress: () => void })
       testID={`camera-tile-${cam.id}`}
     >
       <View style={styles.tileBody}>
-        {online ? (
-          <View style={styles.scanlines} />
+        {online && streamUri ? (
+          <MjpegStreamView uri={streamUri} style={styles.streamPreview} />
         ) : (
           <View style={styles.offlineCenter}>
             <MaterialCommunityIcons name="video-off" size={26} color={C.textFaint} />
             <Text style={styles.offlineText}>OFFLINE</Text>
           </View>
         )}
-        {/* Corner viewfinder ticks */}
         <View style={[styles.tick, styles.tickTL]} />
         <View style={[styles.tick, styles.tickTR]} />
         <View style={[styles.tick, styles.tickBL]} />
         <View style={[styles.tick, styles.tickBR]} />
-        {/* LIVE indicator */}
         {online ? (
           <View style={styles.liveBadge} testID={`live-badge-${cam.id}`}>
             <View style={styles.liveDot} />
@@ -142,10 +149,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  scanlines: {
+  streamPreview: {
     flex: 1,
-    backgroundColor: '#0a0a14',
-    opacity: 0.9,
+    backgroundColor: '#000',
   },
   offlineCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   offlineText: { ...TextStyles.label, color: C.textFaint, fontSize: 10 },

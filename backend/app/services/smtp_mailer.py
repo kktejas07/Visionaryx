@@ -1,5 +1,6 @@
 """
 SMTP sending for enrollment emails. Configuration is stored in app_settings (key smtp_mailer).
+Supports SMTP and Postal HTTP API providers.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ KEY_SMTP_MAILER = "smtp_mailer"
 
 def default_smtp_config() -> dict[str, Any]:
     return {
+        "provider": "smtp",
         "enabled": False,
         "host": "",
         "port": 587,
@@ -25,6 +27,8 @@ def default_smtp_config() -> dict[str, Any]:
         "use_tls": True,
         "use_ssl": False,
         "public_base_url": "",
+        "postal_host": "",
+        "postal_api_key": "",
     }
 
 
@@ -43,6 +47,10 @@ def merge_smtp_config(raw: Optional[dict]) -> dict[str, Any]:
     out["enabled"] = bool(out["enabled"])
     out["use_tls"] = bool(out["use_tls"])
     out["use_ssl"] = bool(out["use_ssl"])
+    provider = (out.get("provider") or "smtp").strip().lower()
+    if provider not in ("smtp", "postal"):
+        provider = "smtp"
+    out["provider"] = provider
     return out
 
 
@@ -58,10 +66,12 @@ def public_dashboard_base_for_links(cfg: dict[str, Any]) -> str:
 
 
 def public_smtp_view(cfg: dict[str, Any]) -> dict[str, Any]:
-    """Strip password for API responses."""
+    """Strip secrets for API responses."""
     c = merge_smtp_config(cfg)
     c.pop("password", None)
+    c.pop("postal_api_key", None)
     c["password_configured"] = bool(cfg.get("password"))
+    c["postal_api_key_configured"] = bool(cfg.get("postal_api_key"))
     return c
 
 
@@ -69,7 +79,7 @@ def send_smtp_mail_sync(cfg: dict[str, Any], to_email: str, subject: str, text: 
     """Blocking SMTP send. Raises on failure."""
     cfg = merge_smtp_config(cfg)
     if not cfg.get("enabled"):
-        raise ValueError("SMTP is disabled")
+        raise ValueError("Email is disabled")
     host = (cfg.get("host") or "").strip()
     if not host:
         raise ValueError("SMTP host is not configured")
@@ -106,3 +116,16 @@ def send_smtp_mail_sync(cfg: dict[str, Any], to_email: str, subject: str, text: 
             if user:
                 smtp.login(user, password)
             smtp.sendmail(from_email, [to_email], msg.as_string())
+
+
+def send_email_sync(cfg: dict[str, Any], to_email: str, subject: str, text: str, html: Optional[str] = None) -> None:
+    """Unified dispatch — routes to SMTP or Postal based on cfg['provider']."""
+    cfg = merge_smtp_config(cfg)
+    if not cfg.get("enabled"):
+        raise ValueError("Email is disabled")
+    provider = cfg.get("provider", "smtp")
+    if provider == "postal":
+        from app.services.postal_mailer import send_postal_mail_sync
+        send_postal_mail_sync(cfg, to_email, subject, text, html)
+    else:
+        send_smtp_mail_sync(cfg, to_email, subject, text, html)

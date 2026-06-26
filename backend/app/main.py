@@ -145,11 +145,13 @@ from app.api import stream
 from app.api import mobile_app
 from app.api import cloudflare
 from app.api import brand
+from app.api import bridge
 
 app.include_router(stream.router, prefix=f"{settings.API_V1_PREFIX}/stream", tags=["stream"])
 app.include_router(mobile_app.router, prefix=f"{settings.API_V1_PREFIX}/mobile-app", tags=["mobile-app"])
 app.include_router(cloudflare.router, prefix=f"{settings.API_V1_PREFIX}/settings", tags=["settings"])
 app.include_router(brand.router, prefix=f"{settings.API_V1_PREFIX}/settings", tags=["settings"])
+app.include_router(bridge.router, prefix=f"{settings.API_V1_PREFIX}/settings", tags=["settings"])
 logger.info("Stream API registered: /api/v1/stream/{camera_id}/start, /stop, /mjpeg")
 from fastapi.staticfiles import StaticFiles
 import os

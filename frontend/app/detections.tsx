@@ -8,6 +8,7 @@ import { useDetectionsViewModel, type DetectionItem } from '@/viewmodels';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub } from '@/components/vx';
+import MobileBackButton from '@/components/MobileBackButton';
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', month: 'short', day: '2-digit', hour12: false });
@@ -19,6 +20,7 @@ export default function DetectionsScreen() {
   return (
     <View style={styles.root} testID="detections-screen">
       <CommandBackground />
+      <MobileBackButton />
       <FlatList
         data={vm.items}
         keyExtractor={(i) => i.id}
