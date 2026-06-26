@@ -239,5 +239,5 @@ export async function api<T>(path: string, opts?: RequestInit, timeoutMs: number
 export function streamMjpegUrl(cameraId: string, token: string): string {
   const base = getApiBase();
   const q = new URLSearchParams({ token });
-  return `${base}/api/v1/stream/${cameraId}/mjpeg?${q.toString()}`;
+  return `${base}/api/v1/stream/${cameraId}/frame?${q.toString()}`;
 }

@@ -114,6 +114,56 @@ def _placeholder_jpeg() -> bytes:
     )
 
 
+_ffmpeg_processes: dict[str, asyncio.subprocess.Process] = {}
+
+
+async def _get_or_start_ffmpeg(rtsp_url: str) -> asyncio.subprocess.Process:
+    if rtsp_url in _ffmpeg_processes:
+        proc = _ffmpeg_processes[rtsp_url]
+        if proc.returncode is None:
+            return proc
+    import subprocess
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-rtsp_transport", "tcp",
+        "-i", rtsp_url,
+        "-f", "image2pipe",
+        "-vcodec", "mjpeg",
+        "-q:v", "2",
+        "-updatefirst", "1",
+        "-",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    _ffmpeg_processes[rtsp_url] = proc
+    return proc
+
+
+_latest_frames: dict[str, bytes] = {}
+
+
+async def _frame_grabber(rtsp_url: str, camera_id: str):
+    proc = await _get_or_start_ffmpeg(rtsp_url)
+    buf = b""
+    while True:
+        chunk = await proc.stdout.read(65536)
+        if not chunk:
+            break
+        buf += chunk
+        while True:
+            start = buf.find(b"\xff\xd8")
+            if start == -1:
+                break
+            end = buf.find(b"\xff\xd9", start + 2)
+            if end == -1:
+                break
+            frame = buf[start:end + 2]
+            buf = buf[end + 2:]
+            _latest_frames[camera_id] = frame
+
+
+_grabber_tasks: set[asyncio.Task] = set()
+
+
 @router.get("/stream/{camera_id}/mjpeg")
 async def stream_mjpeg(
     camera_id: str,
@@ -131,9 +181,67 @@ async def stream_mjpeg(
     rtsp_url = doc.get("rtsp_url")
     if not rtsp_url:
         raise HTTPException(status_code=400, detail="Camera has no RTSP URL")
+
+    # ensure background grabber is running
+    task_key = camera_id
+    if not any(t.get_name() == task_key for t in _grabber_tasks):
+        task = asyncio.create_task(_frame_grabber(rtsp_url, camera_id))
+        task.set_name(task_key)
+        _grabber_tasks.add(task)
+        task.add_done_callback(_grabber_tasks.discard)
+
     return StreamingResponse(
         _generate_mjpeg(rtsp_url),
         media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
+
+
+@router.get("/stream/{camera_id}/frame")
+async def stream_frame(
+    camera_id: str,
+    token: str | None = Query(None),
+):
+    """Single latest JPEG frame. Frontend polls this with <img> + cache busting."""
+    if not _verify_surveillance_token(token):
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+    db = get_db()
+    doc = await db.cameras.find_one({"_id": camera_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    if not doc.get("is_enabled", True):
+        raise HTTPException(status_code=400, detail="Camera disabled")
+    rtsp_url = doc.get("rtsp_url")
+    if not rtsp_url:
+        raise HTTPException(status_code=400, detail="Camera has no RTSP URL")
+
+    # ensure background grabber is running
+    task_key = camera_id
+    if not any(t.get_name() == task_key for t in _grabber_tasks):
+        task = asyncio.create_task(_frame_grabber(rtsp_url, camera_id))
+        task.set_name(task_key)
+        _grabber_tasks.add(task)
+        task.add_done_callback(_grabber_tasks.discard)
+
+    frame = _latest_frames.get(camera_id)
+    if frame is None:
+        # wait a bit for first frame
+        for _ in range(50):
+            await asyncio.sleep(0.1)
+            frame = _latest_frames.get(camera_id)
+            if frame:
+                break
+
+    if frame is None:
+        frame = _placeholder_jpeg()
+
+    from fastapi.responses import Response
+    return Response(
+        content=frame,
+        media_type="image/jpeg",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
