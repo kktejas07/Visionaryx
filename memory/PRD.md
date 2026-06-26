@@ -72,7 +72,10 @@ User then uploaded the official **VisionaryX AI Brand book v1** (Geist + IBM Ple
 | View | All screens in `app/` | Layout + styling only |
 
 ## What's been implemented (2026-06-17 / 06-18 / 06-23 / 06-24 / 06-26)
-- ✅ **Face recognition pipeline (06-26)** — InsightFace `buffalo_sc` + OpenCV + ONNX Runtime on backend. New `routers/face.py`:
+- ✅ **Camera View modal — real live MJPEG (06-26 evening)** — `routers/camera_stream.py` generates synthetic CCTV-styled JPEG frames per camera (Pillow + numpy, no GPU). Two endpoints: `GET /api/v1/cameras/{id}/preview.jpg` (single frame, ~20KB) and `GET /api/v1/cameras/{id}/stream.mjpeg` (10fps multipart/x-mixed-replace). JWT via `?token=` query param so `<img>` tags can authenticate. Frame shows camera name + status dot + LIVE pill + moving violet scan-line + grid + corner brackets + live timestamp + cycling channel #. View modal in `/cameras` now embeds this stream — confirmed rendering live with timestamp ticking.
+- ✅ **Face recognition pipeline (06-26)** — InsightFace `buffalo_sc` + OpenCV + ONNX Runtime on backend. New `routers/face.py` exposes `/detect`, `/match`, `/enroll`, `/enroll/me`, `/status`. Lazy-loaded model (~2-3s cold start). Cosine similarity threshold 0.35. FaceLab UI on Live screen: webcam → 500ms JPEG capture → backend match → animated corner-bracket overlay with linear interpolation. Stats row: faces / latency / enrolled / status.
+- ✅ **Camera View modal — real live MJPEG (06-26 evening)** — `routers/camera_stream.py` generates synthetic CCTV-styled JPEG frames per camera (Pillow + numpy). Two endpoints: `GET /api/v1/cameras/{id}/preview.jpg` (single frame) and `GET /api/v1/cameras/{id}/stream.mjpeg` (10fps multipart). JWT via `?token=` query param. Frame: camera name + status dot + LIVE pill + scan-line + grid + corner brackets + timestamp + channel. View modal in `/cameras` embeds the stream.
+- ✅ **EnrollMyFace component (06-26 evening)** — Settings → Account → Biometrics card. Webcam → POST `/api/v1/face/enroll/me` → backend extracts InsightFace embedding → stores on user record. Audit-logged as `users.face.enroll.self`.
    • `POST /api/v1/face/detect` — base64 image → face bboxes + landmarks
    • `POST /api/v1/face/match` — base64 image → matches against `db.users.face_embedding`
    • `POST /api/v1/face/enroll` (admin) — store embedding for any user

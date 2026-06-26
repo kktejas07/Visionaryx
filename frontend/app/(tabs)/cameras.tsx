@@ -3,7 +3,7 @@
  *
  * MVVM via `useCamerasViewModel`. Admin-only row actions; all roles can view.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, FlatList, Modal, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -12,6 +12,8 @@ import type { CameraModel } from '@/viewmodels/models';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/contexts/ThemeContext';
 import { isAdminRole } from '@/lib/roles';
+import { getStoredToken } from '@/lib/api';
+import { getApiBase } from '@/lib/config';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput, ErrorBanner } from '@/components/vx';
@@ -33,6 +35,20 @@ export default function CamerasScreen() {
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editEnabled, setEditEnabled] = useState(true);
+
+  // Build live-stream src for the View modal whenever a camera is opened.
+  const [streamSrc, setStreamSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!viewing) { setStreamSrc(null); return; }
+    let active = true;
+    (async () => {
+      const token = await getStoredToken();
+      if (!active) return;
+      const url = `${getApiBase()}/api/v1/cameras/${viewing.id}/stream.mjpeg?token=${encodeURIComponent(token ?? '')}`;
+      setStreamSrc(url);
+    })();
+    return () => { active = false; };
+  }, [viewing]);
 
   const onAdd = async () => {
     if (!name.trim() || !url.trim()) return;
@@ -224,11 +240,19 @@ export default function CamerasScreen() {
             <View style={styles.previewWrap}>
               {viewing && Platform.OS === 'web' ? (
                 <View style={[styles.previewFrame, { borderColor: colors.border, backgroundColor: '#000' }]}>
-                  <View style={styles.previewOverlay}>
-                    <MaterialCommunityIcons name="cctv" size={36} color={colors.primaryAccent} />
-                    <Text style={styles.previewLbl}>CAMERA · {viewing.status?.toUpperCase()}</Text>
-                  </View>
-                  <View style={styles.scanLine} />
+                  {streamSrc ? (
+                    // @ts-expect-error — DOM element on web
+                    <img
+                      src={streamSrc}
+                      alt={viewing.camera_name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  ) : (
+                    <View style={styles.previewOverlay}>
+                      <MaterialCommunityIcons name="cctv" size={36} color={colors.primaryAccent} />
+                      <Text style={styles.previewLbl}>CONNECTING…</Text>
+                    </View>
+                  )}
                 </View>
               ) : null}
             </View>

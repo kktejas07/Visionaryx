@@ -12,6 +12,7 @@ import { isAdminRole } from '@/lib/roles';
 import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput, VxCard } from '@/components/vx';
+import { EnrollMyFace } from '@/components/EnrollMyFace';
 
 interface EmailSettings {
   enabled: boolean;
@@ -95,6 +96,14 @@ export default function SettingsScreen() {
           <ScreenTitle>Settings</ScreenTitle>
           <ScreenSub>Adjust your personal display preferences.</ScreenSub>
           <AppearanceCard />
+
+          <View style={{ marginTop: Space.xl }}>
+            <SectionEyebrow>Account · Biometrics</SectionEyebrow>
+          </View>
+          <View style={{ marginTop: Space.md }}>
+            <EnrollMyFace />
+          </View>
+
           <View style={{ marginTop: Space.xl }}>
             <SectionEyebrow>Access</SectionEyebrow>
           </View>
@@ -124,6 +133,13 @@ export default function SettingsScreen() {
 
         {/* Appearance */}
         <AppearanceCard />
+
+        <View style={{ marginTop: Space.xl }}>
+          <SectionEyebrow>Account · Biometrics</SectionEyebrow>
+        </View>
+        <View style={{ marginTop: Space.md }}>
+          <EnrollMyFace />
+        </View>
 
         <View style={{ marginTop: Space.xl }}>
           <SectionEyebrow>System · SMTP</SectionEyebrow>
