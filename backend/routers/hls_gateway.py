@@ -104,15 +104,23 @@ async def _ensure_stream(camera_id: str, rtsp_url: str) -> Path:
         safe = _safe_rtsp_url(rtsp_url)
         cmd = [
             "ffmpeg",
+            # Low-latency input flags
+            "-fflags", "nobuffer+genpts+discardcorrupt",
+            "-flags", "low_delay",
             "-rtsp_transport", "tcp",
-            "-stimeout", "5000000",            # 5s socket timeout
+            "-stimeout", "5000000",
+            "-probesize", "32",
+            "-analyzeduration", "0",
             "-i", safe,
-            "-an",                              # drop audio (most CCTV doesn't need it for ops)
-            "-c:v", "copy",                    # try copy first; falls back to libx264 if codec mismatch
+            "-an",
+            "-c:v", "copy",
+            # Low-latency HLS output: 1s segments, 3-window playlist
             "-f", "hls",
-            "-hls_time", "2",
-            "-hls_list_size", "5",
-            "-hls_flags", "delete_segments+independent_segments",
+            "-hls_time", "1",
+            "-hls_list_size", "3",
+            "-hls_flags", "delete_segments+independent_segments+omit_endlist",
+            "-hls_segment_type", "mpegts",
+            "-hls_allow_cache", "0",
             "-hls_segment_filename", str(out_dir / "seg%05d.ts"),
             str(playlist),
         ]

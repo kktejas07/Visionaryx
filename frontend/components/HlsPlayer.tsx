@@ -29,7 +29,15 @@ export function HlsPlayer({ src, style }: Props) {
       if (cancelled) return;
       const Hls = mod.default;
       if (Hls.isSupported()) {
-        hls = new Hls({ lowLatencyMode: true, maxBufferLength: 6 });
+        hls = new Hls({
+          lowLatencyMode: true,
+          maxBufferLength: 4,
+          maxMaxBufferLength: 6,
+          liveSyncDurationCount: 2,
+          liveMaxLatencyDurationCount: 4,
+          backBufferLength: 0,
+          enableWorker: true,
+        });
         hls.loadSource(src);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {

@@ -116,6 +116,7 @@ export default function TabLayout() {
         name="more"
         options={{
           title: 'More',
+          href: null, // hide from tab bar on all viewports
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="dots-horizontal" size={size} color={color} />,
         }}
       />

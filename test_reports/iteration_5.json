@@ -1,0 +1,38 @@
+{
+  "summary": "Tested new Reports page (/reports), HLS gateway endpoint, and mobile bottom-tab 'More' hidden. Backend: 13/13 new pytest tests pass in /app/backend/tests/test_reports_hls.py covering /reports/summary, /reports/detections (status known/unknown filter, person, date range, limit, auth required) and /api/v1/cameras/{id}/hls/index.m3u8 reachability. Frontend desktop /reports: page renders title 'Detection reports', window chips 7d/30d/90d, status chips ALL/KNOWN/UNKNOWN, search input, KPI cards (Total 672, Known 118, Unknown 554, Known % 17.6%), 4 SVG charts, Top cameras bar list, Hourly distribution, 121 detection rows; Excel export downloads vx-detections-2026-06-26.xls. Filter/window/status chip clicks reload data without errors. Camera View modal on /(tabs)/cameras opens, shows SYNTHETIC PREVIEW badge (LAN IPs unreachable from cloud — expected), close button works, no crash. Mobile (390x844) /(tabs)/alerts: alerts-screen testID renders correctly, bottom tab bar contains 4 tabs (Overview/Live/Cameras/Alerts) and 'More' is NOT present — confirmed via screenshot and body-text scan.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Camera View modal", "issues": ["The 'LIVE' badge (red, top-right of preview canvas) and the 'SYNTHETIC PREVIEW' badge appear to overlap / stack on top of each other in the top-right corner of the preview when the camera is offline and falling back to MJPEG synthetic preview. Either suppress the 'LIVE' badge when in synthetic-preview mode or stack them vertically — currently they overlap and are partially unreadable."]},
+    {"screen": "Reports (desktop)", "issues": ["KPI label color contrast: TOTAL/KNOWN/UNKNOWN/KNOWN % labels are very faint (low-opacity white on near-black). Numbers are readable but uppercase tracking labels could use slightly higher opacity for accessibility."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reports_hls.py",
+    "/app/test_reports/pytest/reports_hls.xml"
+  ],
+  "action_items": [
+    "(LOW) Avoid showing the red 'LIVE' badge when the preview falls back to synthetic mode — currently both 'LIVE' and 'SYNTHETIC PREVIEW' badges overlap in the same corner of the camera modal canvas (see /app/test_reports/camera_modal.png).",
+    "(INFO) RN-Web style warning logged repeatedly: 'Invalid style property of \"animation\". Did you mean \"animationKeyframes\"?' — somewhere a CSS-style `animation: ...` shorthand is passed to a RN Web component. Non-blocking but pollutes the console; consider migrating to `animationKeyframes` or `Animated.*` for compatibility.",
+    "(INFO) `props.pointerEvents is deprecated. Use style.pointerEvents` warning — minor RN Web deprecation."
+  ],
+  "critical_code_review_comments": [
+    "reports.py /detections endpoint uses `flt['alert_type'] = {'$not': {'$regex': 'Face', '$options': 'i'}}` for status=unknown — this correctly excludes Face-* alert types but ALSO excludes documents where alert_type is null/missing only because the $not on a non-existent field returns true in MongoDB. Behavior verified correct in tests (all unknown items have non-Face alert types). Acceptable.",
+    "reports.py /detections: `status` field in response is derived inline as `'known' if 'Face' in d.get('alert_type','')`. This couples the contract to the alert_type string starting with 'Face'. Acceptable for now but document that alert_type must contain 'Face' (case-sensitive at the response layer but case-insensitive at the query layer — slight inconsistency).",
+    "reports.py raw _id is returned in `id` field — confirm _id is a string UUID (not ObjectId). In tested DB it appears to be string, but safer to coerce via `str(d['_id'])` defensively to avoid future ObjectId serialization regressions.",
+    "Excel export is client-side generated as .xls (the file vx-detections-2026-06-26.xls) — this is HTML masquerading as Excel (SpreadsheetML or HTML table). Some Excel installs warn 'The file format and extension don't match'. Consider switching to a real .xlsx blob (sheetjs) for production polish.",
+    "Camera modal: when HLS fails the badge layer should switch text not overlay — minor."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reports_hls.py (new — 13 tests)"
+  ],
+  "success_rate": {"backend": "100% (13/13 new reports+HLS tests)", "frontend": "100% on all requested scenarios"},
+  "test_credentials": "admin@visionaryx.dev / VisionX2025! works.",
+  "seed_data_creation": "None. The existing seeded alerts (672 in the last 30d window) and 4 cameras were sufficient.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `python -m pytest /app/backend/tests/test_reports_hls.py -v` (13 tests, ~23s). For UI, login as admin then visit /reports — should fully render with KPIs/charts/rows + working Excel export. For mobile, set viewport 390x844 and visit /(tabs)/alerts — bottom tab bar should show 4 tabs (Overview, Live, Cameras, Alerts) with NO 'More'. Camera View modal on /(tabs)/cameras intentionally falls back to SYNTHETIC PREVIEW because the seeded RTSP URLs point to private LAN IPs not reachable from cloud — that is expected behavior, not a bug.",
+  "rca of the issue": "No bugs found. The only minor item is a UI polish issue where the LIVE and SYNTHETIC PREVIEW badges overlap inside the camera modal preview canvas (both rendered on top-right). To fix, conditionally render only one of them based on stream type, or stack them vertically with spacing."
+}
