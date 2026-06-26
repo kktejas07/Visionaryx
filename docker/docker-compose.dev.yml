@@ -1,0 +1,37 @@
+# Dev: Postgres only (run backend/frontend locally)
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: visioryx-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: visioryx
+    volumes:
+      - visioryx_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: visioryx-mediamtx
+    ports:
+      - "8554:8554"   # RTSP
+      - "8888:8888"   # HLS
+      - "8889:8889"   # WebRTC HTTP signaling
+      - "8189:8189/udp" # WebRTC ICE/UDP
+      - "9997:9997"   # API
+    environment:
+      - MTX_RTSPTRANSPORTS=tcp
+      - MTX_WEBRTC=true
+      - MTX_WEBRTCADDRESS=:8889
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+
+volumes:
+  visioryx_pgdata:

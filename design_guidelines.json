@@ -1,0 +1,256 @@
+{
+  "theme": "dark",
+  "archetype": "Command Center / Swiss High-Contrast",
+  "brand": {
+    "name": "VisionaryX",
+    "taglines": ["Digital Sentinel", "Neural Analysis", "Vigilance"],
+    "logo_concept": "Minimalist 'X' encased in corner target brackets '[ X ]', representing precision targeting and the 'sentinel eye'. Center of the X features a subtle glowing dot.",
+    "iconography": {
+      "library": "lucide-react",
+      "stroke_weight": "1.5",
+      "style": "sharp, technical, unrounded"
+    },
+    "background_treatment": {
+      "type": "grid",
+      "description": "Subtle 1px geometric grid (size 32px or 64px) with 3% opacity overlaying the deepest background color. Minimal glowing radial gradient centered at the top to break flatness."
+    }
+  },
+  "colors": {
+    "light": {
+      "background": "#F5F7FA",
+      "surface": "#FFFFFF",
+      "surfaceElevated": "#F8FAFC",
+      "onSurface": "#0B1326",
+      "onSurfaceMuted": "#4F5E7B",
+      "border": "#E2E8F0",
+      "primary": "#2065d1",
+      "primaryHover": "#184ea6",
+      "primaryActive": "#10387b",
+      "onPrimary": "#FFFFFF",
+      "secondary": "#E2E8F0",
+      "onSecondary": "#0B1326",
+      "tertiary": "#CBD5E1",
+      "danger": "#D92D20",
+      "dangerHover": "#B42318",
+      "warning": "#DC6803",
+      "success": "#079455",
+      "info": "#2065d1",
+      "scrim": "rgba(11, 19, 38, 0.4)",
+      "glassOverlay": "rgba(255, 255, 255, 0.7)"
+    },
+    "dark": {
+      "background": "#060e20",
+      "surface": "#0b1326",
+      "surfaceElevated": "#121d36",
+      "onSurface": "#FFFFFF",
+      "onSurfaceMuted": "#8C9BB3",
+      "border": "#1e2c4a",
+      "primary": "#2065d1",
+      "primaryHover": "#3376E3",
+      "primaryActive": "#afc6ff",
+      "onPrimary": "#FFFFFF",
+      "secondary": "#1e2c4a",
+      "onSecondary": "#FFFFFF",
+      "tertiary": "#2a3b5c",
+      "danger": "#FF3B30",
+      "dangerHover": "#FF5247",
+      "warning": "#F5A623",
+      "success": "#00C781",
+      "info": "#afc6ff",
+      "scrim": "rgba(0, 0, 0, 0.7)",
+      "glassOverlay": "rgba(11, 19, 38, 0.7)"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Manrope",
+      "body": "Inter",
+      "mono": "JetBrains Mono"
+    },
+    "scale": {
+      "h1": { "fontSize": 48, "lineHeight": 56, "letterSpacing": -1, "fontFamily": "heading", "fontWeight": "600" },
+      "h2": { "fontSize": 36, "lineHeight": 44, "letterSpacing": -0.75, "fontFamily": "heading", "fontWeight": "600" },
+      "h3": { "fontSize": 24, "lineHeight": 32, "letterSpacing": -0.5, "fontFamily": "heading", "fontWeight": "600" },
+      "h4": { "fontSize": 20, "lineHeight": 28, "letterSpacing": -0.25, "fontFamily": "heading", "fontWeight": "500" },
+      "bodyLarge": { "fontSize": 18, "lineHeight": 28, "letterSpacing": 0, "fontFamily": "body", "fontWeight": "400" },
+      "body": { "fontSize": 16, "lineHeight": 24, "letterSpacing": 0, "fontFamily": "body", "fontWeight": "400" },
+      "bodySmall": { "fontSize": 14, "lineHeight": 20, "letterSpacing": 0, "fontFamily": "body", "fontWeight": "400" },
+      "label": { "fontSize": 12, "lineHeight": 16, "letterSpacing": 1, "fontFamily": "heading", "fontWeight": "600", "textTransform": "uppercase" },
+      "dataLarge": { "fontSize": 32, "lineHeight": 40, "letterSpacing": -1, "fontFamily": "mono", "fontWeight": "500" },
+      "dataMedium": { "fontSize": 20, "lineHeight": 28, "letterSpacing": 0, "fontFamily": "mono", "fontWeight": "500" },
+      "dataSmall": { "fontSize": 14, "lineHeight": 20, "letterSpacing": 0, "fontFamily": "mono", "fontWeight": "400" }
+    }
+  },
+  "spacing": {
+    "none": 0,
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 48,
+    "3xl": 64,
+    "4xl": 96
+  },
+  "radius": {
+    "none": 0,
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "full": 9999
+  },
+  "elevation": {
+    "none": "none",
+    "sm": "0px 2px 4px rgba(0, 0, 0, 0.1)",
+    "md": "0px 4px 8px rgba(0, 0, 0, 0.12), 0px 1px 3px rgba(0, 0, 0, 0.08)",
+    "lg": "0px 10px 24px rgba(0, 0, 0, 0.15), 0px 4px 8px rgba(0, 0, 0, 0.1)",
+    "innerGlow": "inset 0px 1px 0px rgba(255, 255, 255, 0.05)"
+  },
+  "motion": {
+    "durations": {
+      "fast": 150,
+      "base": 250,
+      "slow": 400
+    },
+    "easings": {
+      "snappy": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "smooth": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "entrance": "cubic-bezier(0.0, 0.0, 0.2, 1)"
+    },
+    "specific_animations": {
+      "kpi_card_entrance": "Fade in and translate Y from 10px up, staggered by 50ms per card, duration 300ms snappy.",
+      "alert_item_entrance": "Slide in from right (translate X from 20px) and fade in, duration 250ms snappy."
+    }
+  },
+  "breakpoints": {
+    "mobile": 360,
+    "tablet": 768,
+    "desktop": 1024,
+    "wide": 1440
+  },
+  "components": {
+    "kpi_card": {
+      "background": "surface",
+      "border": "1px solid border",
+      "radius": "md",
+      "padding": "lg",
+      "shadow": "none",
+      "description": "Clean, rectangular card with 1px inner glow. Title in bodySmall muted, value in dataLarge mono. Trend indicator at top right. Dense layout."
+    },
+    "alert_row": {
+      "background": "surface",
+      "borderBottom": "1px solid border",
+      "padding": "md",
+      "description": "High density row. Left colored border indicating severity (3px width). Timestamp in dataSmall mono. Unread items have surfaceElevated background."
+    },
+    "bar_chart_bars": {
+      "radius": "none",
+      "defaultColor": "primary",
+      "activeColor": "info",
+      "description": "Sharp, unrounded bars. Hovering over bar triggers activeColor and displays tactical tooltip with JetBrains mono values."
+    },
+    "buttons": {
+      "primary": {
+        "background": "primary",
+        "color": "onPrimary",
+        "radius": "sm",
+        "padding": "12px 24px",
+        "typography": "label"
+      },
+      "secondary": {
+        "background": "transparent",
+        "border": "1px solid border",
+        "color": "onSurface",
+        "radius": "sm"
+      },
+      "ghost": {
+        "background": "transparent",
+        "color": "onSurfaceMuted",
+        "hoverBackground": "surfaceElevated"
+      }
+    },
+    "segmented_control": {
+      "background": "background",
+      "radius": "sm",
+      "padding": "xs",
+      "activeChip": {
+        "background": "surfaceElevated",
+        "radius": "xs",
+        "shadow": "sm",
+        "border": "1px solid border"
+      }
+    },
+    "inputs": {
+      "background": "background",
+      "border": "1px solid border",
+      "radius": "sm",
+      "focusBorder": "primary",
+      "focusRing": "0 0 0 2px rgba(32, 101, 209, 0.2)",
+      "typography": "body"
+    },
+    "modals": {
+      "background": "surface",
+      "radius": "md",
+      "border": "1px solid border",
+      "overlay": "scrim",
+      "glassEffect": true,
+      "shadow": "lg"
+    },
+    "toast": {
+      "background": "surfaceElevated",
+      "border": "1px solid border",
+      "radius": "sm",
+      "shadow": "lg",
+      "typography": "bodySmall"
+    },
+    "tab_bar_mobile": {
+      "background": "surface",
+      "borderTop": "1px solid border",
+      "padding": "xs",
+      "activeColor": "primary",
+      "inactiveColor": "onSurfaceMuted"
+    },
+    "side_nav_web": {
+      "background": "surface",
+      "borderRight": "1px solid border",
+      "width": 260,
+      "activeItem": {
+        "background": "surfaceElevated",
+        "borderLeft": "3px solid primary"
+      }
+    }
+  },
+  "states": {
+    "empty": {
+      "iconSize": 48,
+      "iconColor": "onSurfaceMuted",
+      "typography": "body",
+      "description": "Minimalist centered layout with mono-line icon, muted descriptive text, and a primary action button if applicable. Keep it tactical, not playful."
+    },
+    "loading": {
+      "type": "skeleton",
+      "baseColor": "surface",
+      "highlightColor": "surfaceElevated",
+      "description": "Linear sweep shimmer effect on skeleton shapes. Rectangular blocks (no pills) to match tactical grid aesthetic. For full page loading, use an ASCII/CLI style blinking block cursor or subtle circular radar sweep."
+    }
+  },
+  "media": {
+    "camera_feeds": [
+      "https://images.unsplash.com/photo-1781602169351-6ca9d592b492?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHw0fHxjY3R2JTIwY2FtZXJhJTIwdmlldyUyMGNpdHl8ZW58MHx8fHwxNzgxNzIwODYzfDA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1778855180222-bc56c3d1e83f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwzfHxjY3R2JTIwY2FtZXJhJTIwdmlldyUyMGNpdHl8ZW58MHx8fHwxNzgxNzIwODYzfDA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1579033015784-a5bc5fd31a44?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwyfHxjY3R2JTIwY2FtZXJhJTIwdmlldyUyMGNpdHl8ZW58MHx8fHwxNzgxNzIwODYzfDA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1618482914248-29272d021005?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwxfHxjY3R2JTIwY2FtZXJhJTIwdmlldyUyMGNpdHl8ZW58MHx8fHwxNzgxNzIwODYzfDA&ixlib=rb-4.1.0&q=85"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Use JetBrains Mono exclusively for numerical data, timestamps, IDs, and tabular data to enforce the command center aesthetic.",
+    "Do not center-align marketing or hero texts. Keep layout dense, grid-based, and left-aligned.",
+    "All containers must have crisp borders and very low border-radius (sm/md).",
+    "Avoid flat black (#000000); strictly use the provided ink-blue/obsidian scale for depth.",
+    "Ensure the layout responds cleanly from 360px up to 1920px. Use side nav on web desktop, and bottom tab bar on mobile.",
+    "Data components must feel actionable and high-density, without excessive padding.",
+    "When applying glassmorphism, use 'backdrop-blur-xl' along with the specified glassOverlay token.",
+    "Always apply 'data-testid' to interactive elements for automation."
+  ]
+}

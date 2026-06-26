@@ -1,0 +1,38 @@
+
+# MediaMTX Configuration for Visioryx
+# Extracted field names from bluenviron/mediamtx:latest (v1.17.0)
+
+# ── Authentication ──
+# Allow all local connections without credentials (dev mode)
+authInternalUsers:
+- user: any
+  ips: []
+  permissions:
+  - action: api
+  - action: publish
+  - action: read
+  - action: playback
+
+# ── Control API ──
+api: true
+apiAddress: :9997
+apiAllowOrigins: ['*']
+
+# ── WebRTC server ──
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: false
+webrtcAllowOrigins: ['*']
+# Local UDP listener for WebRTC data (ICE host candidate)
+webrtcLocalUDPAddress: :8189
+# ICE servers (STUN) — needed when clients can't reach local listeners directly
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+# If you have a public IP for remote access, uncomment and set:
+# webrtcAdditionalHosts: [YOUR_PUBLIC_IP]
+
+# ── Paths ──
+paths:
+  # Catch-all: allows the backend to dynamically register any path via API
+  all_others:
+    source: publisher

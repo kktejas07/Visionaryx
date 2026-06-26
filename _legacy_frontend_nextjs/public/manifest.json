@@ -1,0 +1,11 @@
+{
+  "name": "Visioryx — AI Surveillance",
+  "short_name": "Visioryx",
+  "description": "Face recognition, live cameras, alerts, and analytics.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2065D1",
+  "orientation": "any"
+}

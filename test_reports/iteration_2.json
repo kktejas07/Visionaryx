@@ -1,0 +1,48 @@
+{
+  "summary": "Backend: 33/34 pytest pass. The single failing assertion exposes a clear spec violation — /api/v1/analytics/overview still returns detection_trend_7d=random.randint(8,24) and does NOT expose the required detections_last_7d / detections_prev_7d fields. WebSocket /api/v1/ws works end-to-end (welcome event + ping/pong, 4401 on missing/invalid token). All new routes (recent-detections, detection-status-trends, object-stats, settings/email GET+PATCH+/test, users enrollment-link, users PATCH role) function correctly under admin. Frontend: desktop side-nav (260px) renders at 1440px with all 9 nav-* items, brand/eyebrow/workspace/operations sections, user pill (LIVE indicator) and logout. At 390px mobile the bottom tab-bar is visible (y=783) and side-nav is gone. Live/Cameras/Alerts/Detections/Analytics/Users/Audit/Settings/Enroll screens render with their respective screen test-ids. One UX limitation: side-nav disappears on top-level routes (/detections, /analytics, /users, /audit, /settings) so the 'click nav-X then click nav-Y' flow only works when starting from a /(tabs)/ route — once on a top-level route the user must hit back before another side-nav click.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/v1/analytics/overview", "issue": "detection_trend_7d is still random.randint(8,24) (server.py line ~432) and the response is missing detections_last_7d & detections_prev_7d fields. Spec requires a real % delta between last 7d and prior 7d. Two consecutive calls return different values, proving randomness.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/v1/audit", "issue": "Returns a single hard-coded 'system.start' item every call instead of a real audit trail collection. Schema is correct but data is mock — flag for real implementation."},
+      {"endpoint": "GET /api/v1/analytics/detection-status-trends", "issue": "Splits known/unknown using random.uniform(0.6, 0.85) — non-deterministic, will jitter between requests."},
+      {"endpoint": "GET /api/v1/analytics/object-stats", "issue": "Returns a static hard-coded array (no DB-backed counts). Acceptable for MVP but flagged."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Side-nav navigation across top-level routes", "issue": "On /(tabs)/* routes the 260px side-nav is rendered and works (clicks navigate, active indigo bar shows). However /detections, /analytics, /users, /audit, /settings are top-level Expo Router routes whose layout does NOT include the desktop side-nav — they show a back-arrow header instead. As a result, after navigating to one of those screens via the side-nav, you cannot click nav-analytics → nav-users → etc. without first going back to /. This partially violates the 'each side-nav row navigates to its screen with an active indigo bar accenting the active row' requirement: the active-row highlight is only visible for /(tabs)/ entries (Overview/Live/Cameras/Alerts/More).", "affected_selectors": ["nav-detections","nav-analytics","nav-users","nav-audit","nav-settings"]}
+    ],
+    "design_issues": [
+      {"screen": "Overview KPI 'TOTAL OPERATORS' card", "issues": ["Displays a hard-coded '+12% week-over-week' string because the backend trend value is unreliable random data. Once the backend is fixed this should be bound to detection_trend_7d (currently a random int)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix /api/v1/analytics/overview: compute detection_trend_7d as round((last7d - prev7d) / prev7d * 100, 1) using db.alerts (or db.detection_trends) and include detections_last_7d + detections_prev_7d in the response.",
+    "Decide intended desktop nav UX for top-level screens: either (a) move /detections, /analytics, /users, /audit, /settings under (tabs) so the side-nav layout wraps them, or (b) build a shared DesktopShell layout component that re-renders SideNav for those routes too. Currently the active-row indicator is only achievable for the 5 tab routes.",
+    "Replace hard-coded /audit single item with a real audit log collection write on user/camera/settings mutations.",
+    "Make /analytics/detection-status-trends deterministic (persist known/unknown counts in detection_trends instead of random split).",
+    "(Optional) Migrate RN-Web deprecation warnings (shadow* → boxShadow, props.pointerEvents → style.pointerEvents)."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to 988 lines; should be split into routers/{auth,analytics,cameras,alerts,users,settings,ws}.py modules.",
+    "analytics_overview still uses random.randint for trend — direct contradiction of feature spec. Easiest fix: aggregate db.alerts.count_documents({'timestamp': {'$gte': now-7d}}) and the prior 7d window, then compute delta.",
+    "/audit endpoint returns an in-memory stub; no DB read. Spec test will pass shape-wise but it's not a real audit log.",
+    "WebSocket implementation is clean: 4401 on missing/invalid token, welcome system event, ping->pong, broadcaster wired to demo loop. Solid.",
+    "Top-level routes (/detections, /analytics, /users, /audit, /settings) deliberately bypass the (tabs) layout that renders the SideNav — this is a structural decision that breaks the 'always-visible side-nav at ≥1024px' mental model. Consider colocating these screens under (tabs) or adding a shared DesktopShell wrapper."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "97% (33/34) — single failure is the spec-violating analytics_overview trend", "frontend": "~90% — every screen renders with its test-id; only gap is the side-nav not wrapping top-level routes"},
+  "test_credentials": "admin@visionaryx.dev / VisionX2025! and operator@visionaryx.dev / Operator2025! — both still valid.",
+  "seed_data_creation": "Test created (and cleaned up) one TEST_cam_<uuid> camera and one TEST_patch_<uuid>@visionaryx.dev user via the new PATCH /users/{id} test. Settings doc was upserted with host=smtp.example.dev port=2525 — admin should reset if not desired.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite is at /app/backend/tests/backend_test.py and now covers WS (via the `websockets` lib + pytest-asyncio in --asyncio-mode=auto). Run with: `python -m pytest backend/tests/backend_test.py -v --asyncio-mode=auto --junitxml=test_reports/pytest/pytest_results.xml`. WS base URL is REACT_APP_BACKEND_URL with https→wss swap. Frontend test-ids: login-{email-input,password-input,submit-button}; side-nav nav-overview/live/cameras/alerts/more/detections/analytics/users/audit/settings; sidenav-logout; screens live-screen, cameras-screen, alerts-screen, detections-screen, analytics-screen, users-screen, audit-screen, settings-screen, overview-screen, enroll-screen, more-screen. Settings inputs are smtp-* (not settings-*): smtp-enabled-toggle, smtp-host, smtp-port, smtp-tls, smtp-ssl, smtp-from-email, smtp-from-name, save-settings, test-email, test-send.",
+  "rca of the issue": "analytics_overview real-trend bug RCA — server.py line 432 returns `random.randint(8, 24)` literally; nothing in the function aggregates alerts over the last 7d vs prior 7d. The Pydantic-less dict response also omits detections_last_7d/detections_prev_7d. Reproduction: GET /api/v1/analytics/overview twice — detection_trend_7d differs between calls and the two _last/_prev keys are missing. Mitigation: compute last7d_start = now - 7d; prev7d_start = now - 14d; use db.alerts.count_documents with timestamp filters, then % delta. Side-nav RCA — /app/frontend/app/(tabs)/_layout.tsx renders SideNav only inside the (tabs) route group. Files like /app/frontend/app/detections.tsx live at the app/ root, outside (tabs), so they're rendered by app/_layout.tsx (Stack) with no SideNav wrapper. Mitigation: move those files into app/(tabs)/ OR introduce a shared DesktopShell layout at the root that conditionally renders SideNav when width≥1024."
+}

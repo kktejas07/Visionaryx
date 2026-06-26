@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "VisionaryX",
+    "slug": "visionaryx",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "visionaryx",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07070B"
+    },
+    "ios": {
+      "bundleIdentifier": "com.visionaryx.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "VisionaryX connects to your development API on the local network when EXPO_PUBLIC_API_URL uses your computer's LAN address.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.visionaryx.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#07070B",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow VisionaryX to access your camera for face enrollment."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow VisionaryX to access your photos for face enrollment.",
+          "savePhotosPermission": "Allow VisionaryX to save photos."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "newArchEnabled": true
+          },
+          "ios": {
+            "newArchEnabled": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

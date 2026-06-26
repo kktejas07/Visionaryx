@@ -1,0 +1,76 @@
+# Visioryx .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+*.egg-info/
+.eggs/
+
+# Node
+node_modules/
+*.tsbuildinfo
+.next/
+out/
+.env.local
+.env*.local
+
+# Cursor / local tooling
+.specstory/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Storage (keep structure, ignore content)
+backend/storage/registered_faces/*
+backend/storage/unknown_faces/*
+backend/storage/snapshots/*
+!backend/storage/registered_faces/.gitkeep
+!backend/storage/unknown_faces/.gitkeep
+!backend/storage/snapshots/.gitkeep
+
+# AI Models (downloaded at runtime)
+backend/models/*
+!backend/models/.gitkeep
+
+# YOLO weights — downloaded on first object-detection use (Ultralytics)
+backend/yolov8n.pt
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Expo / React Native (mobile/)
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.apk
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials

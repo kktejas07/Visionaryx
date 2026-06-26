@@ -1,0 +1,23 @@
+diff --git a/node_modules/expo-router/build/utils/splash.js b/node_modules/expo-router/build/utils/splash.js
+index 404c889..06e796f 100644
+--- a/node_modules/expo-router/build/utils/splash.js
++++ b/node_modules/expo-router/build/utils/splash.js
+@@ -5,8 +5,16 @@ exports.hideAsync = hideAsync;
+ exports.preventAutoHideAsync = preventAutoHideAsync;
+ exports._internal_preventAutoHideAsync = _internal_preventAutoHideAsync;
+ exports._internal_maybeHideAsync = _internal_maybeHideAsync;
+-const expo_1 = require("expo");
+-const SplashModule = (0, expo_1.requireOptionalNativeModule)('ExpoSplashScreen');
++let SplashModule = null;
++try {
++    const expoModule = require("expo");
++    if (expoModule && typeof expoModule.requireOptionalNativeModule === "function") {
++        SplashModule = expoModule.requireOptionalNativeModule("ExpoSplashScreen");
++    }
++}
++catch {
++    SplashModule = null;
++}
+ let _initializedErrorHandler = false;
+ function hide() {
+     if (!SplashModule) {

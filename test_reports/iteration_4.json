@@ -1,0 +1,41 @@
+{
+  "summary": "E2E test of the new Agent Run Console feature + UI polish. Backend: 10/10 new tests pass (login, agent CRUD, empty runs, SSE run-trace stream with meta/delta/done events, runs persisted after stream, get_run_by_id, plus regression on overview/alerts/cameras). Frontend after a Metro restart: full happy path works — RUN CONSOLE buttons render with [data-testid=agent-console-{id}], navigation to /ai/agents/{id}/console succeeds, agent-console-screen mounts with history rail, READY pill, OPERATOR block, composer & Run button; clicking Run flips pill READY → STREAMING (cyan) → COMPLETE (green) in ~2.4s, streams tokens into AI · OUTPUT, shows 'Completed in 2359ms · 0 tool calls' chip; reload shows the run in the history rail (run-history-* row visible). Sidebar with WORKSPACE/OPERATIONS/AI · STUDIO sections + dividers renders. AI Studio /ai shows all 6 tiles. Login + dashboard + KPI grid + recent alerts + neural status all render correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AI Studio /ai tiles", "issues": ["Tile footer reads 'OPEN →' but spec said 'OPEN MODULE' with a violet dot. Minor copy mismatch — non-blocking."]},
+      {"screen": "Agents list (icon set)", "issues": ["MaterialCommunityIcons emits warnings for invalid icon names 'sparkles' and 'workflow' (used somewhere in shell). 'console' icon used in the RUN CONSOLE button is also not a valid MaterialCommunity name — icon falls back to '?' glyph in places. Replace with valid names like 'auto-fix', 'pipe', 'console-line' / 'console-network'."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_agents.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/ai_agents_results.xml"
+  ],
+  "action_items": [
+    "(IMPORTANT for next deploy) Metro was stuck in CI=true mode — restart was REQUIRED to pick up the new ai/agents/[id]/console route and the new RUN CONSOLE button on agents.tsx. Until I ran `sudo supervisorctl restart frontend`, /ai/agents/{id}/console returned 'This screen doesn't exist.' and the RUN CONSOLE button was absent from the DOM. Recommend either disabling CI mode in dev or always restarting frontend whenever new route files are added under /app/frontend/app.",
+    "Replace invalid MaterialCommunityIcons names: 'sparkles', 'workflow', and 'console' (used on the RUN CONSOLE chip) — they emit console warnings and render as fallback glyph. Suggested replacements: 'auto-fix' / 'star-four-points' / 'pipe' / 'console-line'.",
+    "Align AI Studio tile footer copy to spec — currently shows 'OPEN →', spec asks for 'OPEN MODULE' with a violet leading dot."
+  ],
+  "critical_code_review_comments": [
+    "ai_studio.py run-trace endpoint correctly pre-creates the ai_agent_runs document with status=running BEFORE the stream starts, so history rail will show in-flight runs too. On 'done' it updates status=complete and writes finished_at + duration_ms — confirmed via API.",
+    "console.tsx is 566 lines — borderline; if more features are added consider splitting trace canvas + history rail into separate components.",
+    "Frontend assumes router.push works for the dynamic [id]/console path — passing `as any` casts away the typed-routes safety. Add the route to expo-router typed routes generation or document the cast.",
+    "Backend `/agents/{id}/run-trace` does not stream a final 'done' event with the run summary (duration/output) — UI relies on a separate GET to refresh the history. The 'done' event payload could include duration_ms + output to avoid the extra round-trip."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_agents.py (new file — 10 tests covering agents CRUD + SSE run-trace + run history + run-by-id + regression)"
+  ],
+  "success_rate": {"backend": "100% (10/10 new + previously-passing 34/34 regression untouched)", "frontend": "100% on all 6 frontend scenarios in the request after the required Metro restart"},
+  "test_credentials": "admin@visionaryx.dev / VisionX2025! and operator@visionaryx.dev / Operator2025! — both work.",
+  "seed_data_creation": "Created 1 test agent ('QA Console Agent', anthropic:claude-sonnet-4-5-20250929) with 1 successful run. Backend test suite auto-cleans up its TEST_qa_agent_* agents via the cleanup test. The 'QA Console Agent' + 'Test Console Agent' from manual UI testing are still in the DB — main agent can delete via the trash icon if needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests: `python -m pytest /app/backend/tests/test_ai_agents.py -v` (10 tests, ~3.5s) and `python -m pytest /app/backend/tests/backend_test.py -v` (34 regression tests). For UI, login → AI Studio → Agents → RUN CONSOLE on any agent. CRITICAL gotcha: if you add new Expo Router route files (anywhere under /app/frontend/app/) you MUST `sudo supervisorctl restart frontend` — Metro runs with CI=true (reloads disabled) so file-system route additions are not picked up without restart. This was the exact reason iteration 4 initially saw 'This screen doesn't exist.' for the new console route.",
+  "rca of the issue": "Initial UI test showed (1) RUN CONSOLE button missing from agent cards in DOM despite source code containing it, and (2) /ai/agents/{id}/console returning 'This screen doesn't exist.' RCA: Metro bundler running with CI=true had reloads disabled ('Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.' in /var/log/supervisor/frontend.*.log). The new route file app/ai/agents/[id]/console.tsx and the updated app/ai/agents.tsx with the RUN CONSOLE button were on disk but Metro's route manifest had not been regenerated. Mitigation: ran `sudo supervisorctl restart frontend`, waited ~70s for Metro to rebundle, retested — all selectors and the route now resolve and the full Run Console flow works end-to-end (STREAMING pill, completion chip 'Completed in 2359ms · 0 tool calls', history rail row appears on reload)."
+}
