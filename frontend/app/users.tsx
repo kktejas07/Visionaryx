@@ -30,7 +30,16 @@ export default function UsersScreen() {
   const [newRole, setNewRole] = useState('operator');
   const [busy, setBusy] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [roleFor, setRoleFor] = useState<UserItem | null>(null);
+
+  const closeMenu = () => { setMenuFor(null); setMenuPos(null); };
+
+  const openMenu = (id: string, e: any) => {
+    if (menuFor === id) { closeMenu(); return; }
+    setMenuPos({ top: e.nativeEvent.pageY, left: e.nativeEvent.pageX - 200 });
+    setMenuFor(id);
+  };
 
   const onAdd = async () => {
     if (!newEmail.trim() || newPwd.length < 8) {
@@ -142,7 +151,7 @@ export default function UsersScreen() {
               <Text style={styles.roleText}>{(item.role || 'operator').toUpperCase()}</Text>
             </View>
             <Pressable
-              onPress={() => setMenuFor(menuFor === item.id ? null : item.id)}
+              onPress={(e) => openMenu(item.id, e)}
               hitSlop={6}
               style={styles.menuBtn}
               testID={`user-menu-${item.id}`}
@@ -150,31 +159,7 @@ export default function UsersScreen() {
               <MaterialCommunityIcons name="dots-vertical" size={18} color={C.textMuted} />
             </Pressable>
 
-            {/* menu rendered at root via modal to avoid FlatList clipping */}
-            {menuFor === item.id ? (
-              <Modal visible transparent animationType="none" onRequestClose={() => setMenuFor(null)}>
-                <Pressable style={styles.menuScrim} onPress={() => setMenuFor(null)}>
-                  <View style={styles.menu} testID={`user-menu-open-${item.id}`}>
-                    <Pressable style={styles.menuItem} onPress={() => onSendLink(item)}>
-                      <MaterialCommunityIcons name="email-outline" size={16} color={C.primaryAccent} />
-                      <Text style={styles.menuLabel}>Send enrollment link</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.menuItem}
-                      onPress={() => { setMenuFor(null); setRoleFor(item); }}
-                    >
-                      <MaterialCommunityIcons name="account-cog" size={16} color={C.primaryAccent} />
-                      <Text style={styles.menuLabel}>Change role</Text>
-                    </Pressable>
-                    <View style={styles.menuDivider} />
-                    <Pressable style={styles.menuItem} onPress={() => onDelete(item)}>
-                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.danger} />
-                      <Text style={[styles.menuLabel, { color: C.danger }]}>Delete</Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
-              </Modal>
-            ) : null}
+            {/* single menu overlay at root level */}
           </View>
         )}
         ListEmptyComponent={
@@ -182,6 +167,39 @@ export default function UsersScreen() {
         }
       />
 
+      {menuFor && menuPos ? (
+        <View style={styles.menuOverlayScrim}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
+          <View style={[styles.menu, { position: 'absolute', top: menuPos.top + 4, left: Math.max(4, menuPos.left - 200) }]} testID={`user-menu-open-${menuFor}`}>
+            {vm.filtered.find((i) => i.id === menuFor) ? (
+              <>
+                <Pressable style={styles.menuItem} onPress={() => {
+                  const u = vm.filtered.find((i) => i.id === menuFor);
+                  if (u) onSendLink(u);
+                }}>
+                  <MaterialCommunityIcons name="email-outline" size={16} color={C.primaryAccent} />
+                  <Text style={styles.menuLabel}>Send enrollment link</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => {
+                  const u = vm.filtered.find((i) => i.id === menuFor);
+                  if (u) { setMenuFor(null); setMenuPos(null); setRoleFor(u); }
+                }}>
+                  <MaterialCommunityIcons name="account-cog" size={16} color={C.primaryAccent} />
+                  <Text style={styles.menuLabel}>Change role</Text>
+                </Pressable>
+                <View style={styles.menuDivider} />
+                <Pressable style={styles.menuItem} onPress={() => {
+                  const u = vm.filtered.find((i) => i.id === menuFor);
+                  if (u) onDelete(u);
+                }}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.danger} />
+                  <Text style={[styles.menuLabel, { color: C.danger }]}>Delete</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
       {/* Add modal */}
       <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
         <View style={styles.scrim} testID="add-user-modal">
@@ -296,9 +314,10 @@ const styles = StyleSheet.create({
   rolePill: { backgroundColor: C.primaryFaint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.sm },
   roleText: { ...TextStyles.label, color: C.primaryAccent, fontSize: 9, letterSpacing: 1.2 },
   menuBtn: { padding: 6 },
-  menuScrim: {
-    flex: 1, justifyContent: 'flex-start', alignItems: 'flex-end',
-    paddingTop: 180, paddingRight: 24,
+  menuOverlayScrim: {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 999,
   },
   menu: {
     backgroundColor: C.surface2, borderRadius: Radius.md,
