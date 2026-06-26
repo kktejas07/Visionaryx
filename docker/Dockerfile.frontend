@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-ARG EXPO_PUBLIC_API_URL=https://api.visionaryx.forgetechno.com
+ARG EXPO_PUBLIC_API_URL=https://visionaryx.forgetechno.com
 ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
 
 COPY frontend/package*.json ./
