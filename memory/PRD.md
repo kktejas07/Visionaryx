@@ -71,8 +71,9 @@ User then uploaded the official **VisionaryX AI Brand book v1** (Geist + IBM Ple
 | ViewModel | `useLoginViewModel`, `useDashboardViewModel`, `useAlertsViewModel`, `useCamerasViewModel`, `useDetectionsViewModel`, `useUsersViewModel` | State, actions, derived vals |
 | View | All screens in `app/` | Layout + styling only |
 
-## What's been implemented (2026-06-17 / 06-18 / 06-23)
-- ✅ MongoDB FastAPI on port 8001, 34/34 pytest pass
+## What's been implemented (2026-06-17 / 06-18 / 06-23 / 06-24)
+- ✅ **MongoDB Atlas migration (06-24)** — backend now points to dedicated Atlas cluster `visionaryx.ld24mza.mongodb.net`. Seed populated admin + operator + 6 cameras + 24 alerts + 30 days of trend data + audit log. All 12 router endpoints verified `200 OK` against Atlas. Connection: `mongodb+srv://...@visionaryx.ld24mza.mongodb.net/?appName=VisionaryX&retryWrites=true&w=majority`. **⚠️ Credentials shared in chat — should be rotated.**
+- ✅ MongoDB FastAPI on port 8001, 34/34 pytest pass (legacy local-Mongo tests)
 - ✅ Seeded admin/operator + 6 demo cameras + 24 alerts + 30 days of trend data
 - ✅ Replaced Next.js frontend with Expo Router; `/app/_legacy_frontend_nextjs` archived
 - ✅ Single React Native + RN-Web codebase serves iOS / Android / Web from `yarn start` (Expo Web on port 3000)
