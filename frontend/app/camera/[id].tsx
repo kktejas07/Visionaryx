@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, useWindowDimensions, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView } from 'react-native-webview';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getStoredToken, streamMjpegUrl, api } from '@/lib/api';
 import { Stitch, FontFamily } from '@/constants/stitchTheme';
+import MjpegStreamView from '@/components/MjpegStreamView';
 
 type CameraDetails = {
   id: string;
@@ -50,14 +50,7 @@ export default function CameraViewerScreen() {
           </View>
         ) : (
           <View style={styles.feedWrapper}>
-            <WebView
-              source={{ uri }}
-              style={styles.web}
-              scrollEnabled={false}
-              allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction={false}
-              originWhitelist={['*']}
-            />
+            <MjpegStreamView uri={uri} style={styles.web} />
             {/* Surveillance Overlays */}
             <View style={styles.overlayTop}>
               <View style={styles.livePill}>
