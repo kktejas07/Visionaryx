@@ -126,19 +126,29 @@ User then uploaded the official **VisionaryX AI Brand book v1** (Geist + IBM Ple
 - ✅ **Persisted audit log (06-23)** — `db.audit_logs` collection with indexes on `created_at` + `actor_email`. `write_audit()` helper wired into: `auth.login`, `auth.login.failed`, `users.create`, `users.update`, `users.delete`, `settings.email.update`, `system.start`. `GET /api/v1/audit` supports `?actor=<substr>&action=<exact>&limit&offset`.
 - ✅ **Audit Log dashboard (06-23)** — `/audit` redesigned: color-coded action chips, actor + action filters, CSV export, IP/actor/detail JSON per row.
 - ✅ **Richer Agent Run Console `done` event (06-23)** — SSE final event now includes `output`, `finished_at`, `status`, `tool_calls_detail` so the UI updates history optimistically with zero follow-up GET.
+- ✅ **MongoDB Atlas migration (06-25)** — production cluster `visionaryx` DB.
+- ✅ **RTSP → HLS gateway (06-25)** — `routers/hls_gateway.py` spawns `ffmpeg` per camera, serves `/api/v1/cameras/{id}/hls/index.m3u8?token=<jwt>`. Falls back to synthetic MJPEG when LAN IP unreachable from cloud.
+- ✅ **Unknown-face auto-alerts + camera health-check loop (06-25)** — InsightFace pipeline, 60s background loop.
+- ✅ **HLS low-latency tuning (06-26)** — ffmpeg flags `nobuffer+low_delay+probesize 32+analyzeduration 0`, 1s segments, 3-window playlist, `hls.lowLatencyMode` on client. Confirmed working via testing agent.
+- ✅ **Reports / Analytics page (06-26)** — `routers/reports.py` (`/api/v1/reports/summary` + `/api/v1/reports/detections`) + `app/reports.tsx` with window chips (7d/30d/90d), status filter (all/known/unknown), search, KPI cards, SVG timeseries chart, hourly bar chart, top-cameras bar list, detection-records list, and one-click Excel export (CSV with `.xls` extension). Error banner for failed loads. **Tested 06-26**: 13/13 pytest tests pass + full frontend E2E passes (`/app/test_reports/iteration_5.json`).
+- ✅ **Hide "More" tab on mobile (06-26)** — `href: null` on `(tabs)/more.tsx` — confirmed via mobile viewport test (390x844) showing 4-tab bar without "More".
 
 ## Backlog
-**P2 — Polish + production**
-- Real persisted audit log (currently stub returns one hard-coded entry)
-- Persist known/unknown split for `detection-status-trends` (currently random)
-- DB-aggregated `object-stats` (currently static array)
-- Split `server.py` (~1000 lines) into routers/{auth,analytics,cameras,…}
-- Migrate RN-Web deprecated `shadow*` → `boxShadow`
+**P1 — UI polish (LOW priority from iteration_5)**
+- Camera View modal: when streaming, prevent the LIVE / SYNTHETIC PREVIEW badges from overlapping during transition; render only one based on resolved mode.
+- Reports KPI labels: bump opacity for TOTAL/KNOWN/UNKNOWN/KNOWN % uppercase labels for a11y contrast.
+- Migrate RN-Web `animation: ...` shorthand → `animationKeyframes` to silence console warnings.
+- Migrate `props.pointerEvents` → `style.pointerEvents` for RN-Web compat.
 
-**P3 — Heavy AI pipeline (deferred)**
-- Re-introduce InsightFace + OpenCV face recognition (needs Linux worker + persistent storage)
-- Multi-camera HLS streaming via `expo-video`
-- Light-mode toggle (Mist palette already in tokens)
+**P2 — Activity Stream**
+- 15s auto-refresh polling on Dashboard Activity widget.
+- Inline action buttons on Activity rows (acknowledge / re-run / revert).
+
+**P2 — Phone-as-camera MVP (discussed, not started)**
+- Browser MediaStream → WS ingest, QR-code pairing flow, register paired device as a "virtual" camera in inventory.
+
+**P3 — Excel export polish**
+- Switch from `.xls` (HTML-table) to real `.xlsx` blob via SheetJS for production cleanliness (~500KB bundle hit).
 
 ## Honest status
 - All 12 screens render in the new brand on both web (RN-Web) and mobile (RN)
