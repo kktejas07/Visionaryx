@@ -122,6 +122,7 @@ def _placeholder_jpeg() -> bytes:
 
 
 _latest_frames: dict[str, bytes] = {}
+_frame_counters: dict[str, int] = {}
 
 
 async def _frame_grabber(rtsp_url: str, camera_id: str):
@@ -136,6 +137,7 @@ async def _frame_grabber(rtsp_url: str, camera_id: str):
             stderr=asyncio.subprocess.PIPE,
         )
         buf = b""
+        counter = 0
         while True:
             chunk = await process.stdout.read(65536)
             if not chunk:
@@ -156,6 +158,8 @@ async def _frame_grabber(rtsp_url: str, camera_id: str):
                 frame = buf[start:end + 2]
                 buf = buf[end + 2:]
                 _latest_frames[camera_id] = frame
+                counter += 1
+                _frame_counters[camera_id] = counter
         await asyncio.sleep(1)
 
 
@@ -169,6 +173,30 @@ def _ensure_grabber(rtsp_url: str, camera_id: str):
         task.set_name(task_key)
         _grabber_tasks.add(task)
         task.add_done_callback(_grabber_tasks.discard)
+
+
+async def _stream_from_grabber(camera_id: str):
+    """Yield MJPEG frames from the background grabber (no per-request ffmpeg)."""
+    placeholder = _placeholder_jpeg()
+    boundary = "frame"
+    last_counter = _frame_counters.get(camera_id, 0)
+
+    while True:
+        frame = _latest_frames.get(camera_id)
+        counter = _frame_counters.get(camera_id, 0)
+
+        if frame is None or counter == last_counter:
+            frame = placeholder
+            await asyncio.sleep(0.04)
+            continue
+
+        last_counter = counter
+        yield (
+            b"--" + boundary.encode() + b"\r\n"
+            b"Content-Type: image/jpeg\r\n"
+            b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
+            + frame + b"\r\n"
+        )
 
 
 @router.get("/stream/{camera_id}/mjpeg")
@@ -189,8 +217,11 @@ async def stream_mjpeg(
     if not rtsp_url:
         raise HTTPException(status_code=400, detail="Camera has no RTSP URL")
 
+    # use the persistent background grabber — no per-request ffmpeg startup
+    _ensure_grabber(rtsp_url, camera_id)
+
     return StreamingResponse(
-        _generate_mjpeg(rtsp_url),
+        _stream_from_grabber(camera_id),
         media_type="multipart/x-mixed-replace; boundary=frame",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
