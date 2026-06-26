@@ -23,7 +23,7 @@ from typing import Any
 
 import jwt
 import numpy as np
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 
 from deps import JWT_ALGORITHM, JWT_SECRET, get_db
@@ -130,7 +130,7 @@ async def camera_preview(camera_id: str, token: str | None = Query(None)) -> Res
     # Phone-camera → re-serve latest captured frame.
     if cam.get("kind") == "phone":
         from routers.phone_camera import get_frame
-        body, _age = get_frame(camera_id)
+        body, _age = await get_frame(camera_id)
         if body is not None:
             return Response(content=body, media_type="image/jpeg",
                             headers={"Cache-Control": "no-cache, no-store"})
@@ -144,12 +144,12 @@ async def camera_preview(camera_id: str, token: str | None = Query(None)) -> Res
 
 
 @router.get("/{camera_id}/stream.mjpeg")
-async def camera_mjpeg(camera_id: str, token: str | None = Query(None)) -> StreamingResponse:
-    """Synthetic 10 fps MJPEG stream. The connection stays open and we yield a
-    fresh frame every 100 ms until the client disconnects.
+async def camera_mjpeg(request: Request, camera_id: str, token: str | None = Query(None)) -> StreamingResponse:
+    """Synthetic 10 fps MJPEG stream. Yields a fresh frame every 100 ms until
+    the client disconnects (`request.is_disconnected()` polled every 500 ms).
 
-    For phone-cameras, frames come from the in-memory buffer populated by the
-    phone's WebSocket. Falls back to synthetic if no fresh frame is available.
+    For phone-cameras frames come from the MongoDB-backed phone_frames buffer
+    (populated by the phone's WebSocket). Falls back to synthetic if stale.
     """
     await _auth_from_query(token)
     db = get_db()
@@ -165,12 +165,17 @@ async def camera_mjpeg(camera_id: str, token: str | None = Query(None)) -> Strea
     async def gen():
         from routers.phone_camera import get_frame as _get_frame
         frame_n = 0
-        last_ts = 0.0
+        last_disconnect_check = 0.0
         try:
             while True:
+                now = time.time()
+                if now - last_disconnect_check > 0.5:
+                    last_disconnect_check = now
+                    if await request.is_disconnected():
+                        return
                 body: bytes | None = None
                 if is_phone:
-                    entry_bytes, _age = _get_frame(camera_id)
+                    entry_bytes, _age = await _get_frame(camera_id)
                     if entry_bytes is not None:
                         body = entry_bytes
                 if body is None:

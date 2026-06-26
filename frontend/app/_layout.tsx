@@ -25,6 +25,7 @@ import { RealtimeProvider } from '@/contexts/RealtimeContext';
 import { ThemeProvider as VxThemeProvider, useColorMode } from '@/contexts/ThemeContext';
 import { PaletteDark, PaletteLight, FontFamily as Fonts } from '@/constants/visionTheme';
 import { DesktopShell } from '@/components/DesktopShell';
+import { MobileNavDrawer } from '@/components/MobileNavDrawer';
 import { VxThemeStyles } from '@/components/VxThemeStyles';
 
 export { ErrorBoundary } from 'expo-router';
@@ -128,6 +129,7 @@ function NavStack() {
           <Stack.Screen name="ai/mcp" options={{ headerShown: false }} />
           <Stack.Screen name="ai/agents/[id]/console" options={{ headerShown: false }} />
         </Stack>
+        <MobileNavDrawer />
       </DesktopShell>
     </NavThemeProvider>
   );

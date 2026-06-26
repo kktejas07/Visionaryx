@@ -1,0 +1,44 @@
+{
+  "summary": "Phone-as-camera hardening + mobile nav drawer verified end-to-end. Backend: requested 14+4 pytest tests in /app/backend/tests/test_phone_camera.py + test_phone_camera_hardening.py PASS (18/18). Regression /app/backend/tests/test_reports_hls.py PASS (13/13). Added 6 supplementary tests in /app/backend/tests/test_phone_camera_iter7_extras.py to cover gaps from the review request: (1) MongoDB `phone_frames` doc is populated with `bytes` + `ts` fields after a phone WS push (verified via direct Motor query against the live Atlas DB), (2) camera doc `status` flips from offline -> active while WS is connected, (3) /api/v1/cameras/{id}/stream.mjpeg returns multipart/x-mixed-replace with `vxframe` boundary and serves the cached phone frame, (4) QR ?base=https://override.example.com → embeds override URL (PNG magic verified), (5) WS with `pair_expires_at` forced into the past — connection IS rejected on the expired-token branch (Starlette converts the pre-accept `ws.close(code=4010)` into an HTTP 403 handshake rejection — the literal 4010 code is NOT delivered over the wire because the server closes before `accept()`; rejection itself is asserted). Result: 5 passed, 1 skipped (pyzbar not installed → QR content decode skipped; PNG validity still asserted). Frontend mobile (390x844) admin login: FAB testID='mobile-nav-trigger' visible on Overview, Live, Cameras, Alerts. Drawer opens; all 13 entries present and clickable (drawer-detections, -analytics, -reports, -users, -audit, -settings, -ai-studio, -bot-reply, -agents, -automations, -models, -rag, -mcp). drawer-reports → URL /reports + drawer auto-closes. mobile-nav-close button closes drawer. Tapping the empty right portion of the scrim closes the drawer (the drawer body itself correctly stops propagation — center taps on it do NOT close, which is intentional UX). Bottom tab bar shows the same 4 tabs (Overview/Live/Cameras/Alerts) — NO 'More' tab (visually confirmed in screenshot). Desktop (1920x1080) `mobile-nav-trigger` hidden as required; `nav-reports` side-nav still routes to /reports. /pair?token=invalid-token hides the FAB on BOTH mobile and desktop viewports.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "WS /api/v1/phone-cameras/ws/ingest (expired pair_expires_at)", "issue": "Spec asked for close code 4010 but server calls `ws.close(code=4010)` BEFORE `ws.accept()`. Starlette translates a pre-accept close into an HTTP 403 handshake rejection, so the literal 4010 close-frame is NOT observable by clients — they only see InvalidStatus/403. Behavior still blocks the expired token correctly. To deliver true 4010 wire code, call `await ws.accept()` first and then `await ws.close(code=4010)`."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phone_camera.py",
+    "/app/backend/tests/test_phone_camera_hardening.py",
+    "/app/backend/tests/test_phone_camera_iter7_extras.py",
+    "/app/test_reports/pytest/phone_camera_iter7.xml",
+    "/app/test_reports/pytest/reports_hls_iter7.xml",
+    "/app/test_reports/pytest/phone_camera_iter7_extras.xml"
+  ],
+  "action_items": [
+    "(OPTIONAL/LOW) If a true WS close code 4010 is required on the wire (e.g., the phone client logic discriminates 4010 vs 4004 vs generic handshake-fail), accept the WebSocket first, then close with code 4010 — currently both branches manifest the same way to a JS client (handshake error). Otherwise no fix needed."
+  ],
+  "critical_code_review_comments": [
+    "phone_camera.py ws_ingest: pre-accept close(code=4010|4004) emits HTTP 403 — fine for the standard 'reject this WS' contract, but if iOS/Android client expects the WebSocket close-code path, it will never see those codes. Document the contract or accept-then-close.",
+    "phone_camera.py /qr.png: env REACT_APP_BACKEND_URL is read on EVERY request (lightweight) — fine. Override chain ?base → env → request.base_url is implemented as `base or _public_base_url(request)`; this matches the spec. Note: there is no validation that ?base is a well-formed URL; a malicious admin can embed `javascript:alert(1)/pair?token=...` in the QR. Low risk (admin-only endpoint) but worth a URL-scheme allowlist for defense in depth.",
+    "camera_stream.py phone-frame path: disconnect-check every 500ms — verified working via the new MJPEG test. No further concerns.",
+    "MobileNavDrawer.tsx: drawer child Pressable uses `onPress={(e) => e.stopPropagation?.()}` to prevent inner taps from closing the modal. React Native Web only invokes stopPropagation when the event is a synthetic event with that method — works as expected on web. Recommend also handling hardware-back on Android (onRequestClose already wired ✓)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phone_camera_iter7_extras.py (new — 6 supplementary tests for MongoDB persistence, status flip, MJPEG re-stream, QR base fallback, expired-token rejection)"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 phone_camera + hardening, 13/13 reports/HLS regression, 5/5 iter7 extras with 1 skip on pyzbar QR decode)",
+    "frontend": "100% on all requested scenarios (FAB visibility per page, 13 drawer entries, /reports nav, close + scrim close behavior, desktop hidden, /pair hidden)"
+  },
+  "test_credentials": "admin@visionaryx.dev / VisionX2025! working — used for all backend pytest and UI flows.",
+  "seed_data_creation": "Each pytest fixture creates and tears down a single TEST_iter7_extra phone camera per scope — DB left clean. No persistent UI cameras created during this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `python -m pytest /app/backend/tests/test_phone_camera.py /app/backend/tests/test_phone_camera_hardening.py /app/backend/tests/test_phone_camera_iter7_extras.py /app/backend/tests/test_reports_hls.py -v` for the full phone-camera regression (37 tests total + 1 skipped). The new iter7_extras tests require `python-dotenv`, `motor`, `pillow`, `websockets`, `requests` (all pre-installed). For QR content-decode (optional), install `pyzbar` + system libzbar0 — currently skipped. UI: drawer/scrim/close all verified; FAB is hidden on desktop ≥1024px, /pair public path, and when unauthenticated.",
+  "rca of the issue": "No functional bugs found. One semantic nuance with the WS expired-token close: server emits 4010 via Starlette pre-accept close, which becomes an HTTP 403 handshake rejection — the wire-level 4010 frame is never sent. If clients need to discriminate close codes, accept then close. All other hardening items (Mongo buffer, 10fps rate-limit via min interval, 2MB size cap, QR base fallback, 500ms disconnect poll) verified working end-to-end against live deployment."
+}
