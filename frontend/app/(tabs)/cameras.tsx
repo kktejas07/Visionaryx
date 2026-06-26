@@ -249,7 +249,6 @@ export default function CamerasScreen() {
               <Switch
                 value={item.is_enabled}
                 onValueChange={(v) => vm.toggle(item.id, v).catch((e) => Alert.alert('Error', e?.message))}
-                trackColor={{ false: colors.surface3, true: colors.primary }}
                 trackColor={{ false: C.surface3, true: C.primary }}
                 thumbColor="#fff"
                 disabled={!isAdmin}
@@ -267,15 +266,8 @@ export default function CamerasScreen() {
                 </Pressable>
               ) : null}
             </View>
-          );
-        }}
-                <Pressable onPress={() => onRemove(item)} style={styles.actionBtn} hitSlop={6}>
-                  <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.danger} />
-                </Pressable>
-              ) : null}
-            </View>
           </View>
-        )}
+        )}}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textMuted }]}>
             {vm.loading ? 'Loading…' : 'No cameras configured.'}
