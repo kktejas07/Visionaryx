@@ -241,3 +241,10 @@ export function streamMjpegUrl(cameraId: string, token: string): string {
   const q = new URLSearchParams({ token });
   return `${base}/api/v1/stream/${cameraId}/mjpeg?${q.toString()}`;
 }
+
+export function streamH264WsUrl(cameraId: string, token: string): string {
+  const base = getApiBase();
+  const wsBase = base.replace(/^http/, 'ws');
+  const q = new URLSearchParams({ token });
+  return `${wsBase}/api/v1/stream/${cameraId}/h264?${q.toString()}`;
+}
