@@ -1,14 +1,39 @@
-"""MJPEG stream + H.264 WebSocket endpoints (MongoDB backend)."""
+"""MJPEG stream + H.264 WebSocket + face detection overlay (MongoDB backend)."""
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 import jwt
+import numpy as np
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from deps import get_db
+
+# ---------------------------------------------------------------------------
+# Lazy imports for face detection (graceful if models not installed)
+# ---------------------------------------------------------------------------
+_HAS_FACE_DETECTION = False
+_FACE_DETECTOR = None
+_FACE_MATCHER = None
+_DRAW_DETECTIONS = None
+_AI_ENABLED = os.environ.get("STREAM_ENABLE_AI_OVERLAY", "").lower() in ("1", "true", "yes")
+
+if _AI_ENABLED:
+    try:
+        from app.ai.face_detector import detect_faces as _detect_faces
+        from app.ai.face_matcher import find_best_match as _find_best_match
+        from app.services.detection_overlay import _draw_detections as _draw
+        import cv2
+        _HAS_FACE_DETECTION = True
+        _FACE_DETECTOR = _detect_faces
+        _FACE_MATCHER = _find_best_match
+        _DRAW_DETECTIONS = _draw
+        logger.info("Face detection overlay ENABLED")
+    except Exception as exc:
+        logger.warning("Face detection modules not available: %s", exc)
 
 logger = logging.getLogger("visioryx")
 
@@ -90,10 +115,99 @@ _FFMPEG_H264 = [
 _latest_frames: dict[str, bytes] = {}
 _frame_events: dict[str, asyncio.Event] = {}
 
+# ---------------------------------------------------------------------------
+# Face detection overlay helpers (MongoDB embeddings)
+# ---------------------------------------------------------------------------
+_ai_embeddings: list[tuple[str, list[float]]] = []
+_ai_counter: int = 0
+
+
+def _load_ai_embeddings():
+    """Load face embeddings from MongoDB users collection (sync helper)."""
+    global _ai_embeddings
+    try:
+        import asyncio
+        from deps import get_db
+        from motor.motor_asyncio import AsyncIOMotorDatabase
+
+        db = get_db()
+
+        async def _fetch():
+            result = []
+            cursor = db.users.find(
+                {"face_embedding": {"$exists": True, "$ne": None}},
+                {"face_embedding": 1, "name": 1, "email": 1},
+            )
+            async for doc in cursor:
+                emb = doc.get("face_embedding")
+                if emb and isinstance(emb, list) and len(emb) > 0:
+                    result.append((doc.get("name") or doc.get("email", "?"), emb))
+            return result
+
+        _ai_embeddings = asyncio.run(_fetch())
+        logger.info("Loaded %d face embeddings for detection", len(_ai_embeddings))
+    except Exception as exc:
+        logger.warning("Failed to load face embeddings: %s", exc)
+
+
+def _annotate_jpeg(jpeg_bytes: bytes) -> bytes:
+    """Decode JPEG → run face detection → draw boxes → re-encode."""
+    global _ai_counter
+    _ai_counter += 1
+
+    if not _HAS_FACE_DETECTION or not _AI_ENABLED:
+        return jpeg_bytes
+
+    # Run detection every 3rd frame to save CPU
+    if _ai_counter % 3 != 0:
+        return jpeg_bytes
+
+    try:
+        import cv2
+
+        # Decode
+        arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return jpeg_bytes
+
+        # Detect faces
+        faces = _FACE_DETECTOR(frame, for_embedding=False)
+        annots = []
+
+        for f in faces:
+            bbox = f["bbox"]
+            if f.get("det_score", 0) < 0.3:
+                continue
+            status = "unknown"
+            label = "Unknown"
+            if _ai_embeddings and f.get("embedding"):
+                match = _FACE_MATCHER(f["embedding"], [(i, e) for i, (_, e) in enumerate(_ai_embeddings)])
+                if match is not None:
+                    idx, score = match
+                    status = "known"
+                    label = _ai_embeddings[idx][0] if idx < len(_ai_embeddings) else "Known"
+            annots.append({"bbox": bbox, "status": status, "label": label})
+
+        if annots:
+            frame = _DRAW_DETECTIONS(frame, annots, [])
+
+        # Re-encode
+        _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        return buf.tobytes()
+
+    except Exception:
+        return jpeg_bytes
+
 
 async def _frame_grabber(rtsp_url: str, camera_id: str):
     """Background ffmpeg: H264 → MJPEG, signals _frame_events on each frame."""
     import subprocess
+
+    # Load face embeddings on first run
+    if _AI_ENABLED and _HAS_FACE_DETECTION and not _ai_embeddings:
+        _load_ai_embeddings()
+
     while True:
         cmd = [w if w != "__RTSP_URL__" else rtsp_url for w in _FFMPEG_MJPEG]
         process = await asyncio.create_subprocess_exec(
@@ -116,7 +230,7 @@ async def _frame_grabber(rtsp_url: str, camera_id: str):
                     break
                 frame = buf[start:end + 2]
                 buf = buf[end + 2:]
-                _latest_frames[camera_id] = frame
+                _latest_frames[camera_id] = _annotate_jpeg(frame)
                 ev = _frame_events.get(camera_id)
                 if ev is not None:
                     ev.set()
