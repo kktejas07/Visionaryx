@@ -1,5 +1,5 @@
 /**
- * Settings — admin SMTP configuration + test.
+ * Settings — admin email configuration + test. Supports SMTP and Postal.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -14,6 +14,7 @@ import { CommandBackground } from '@/components/CommandBackground';
 import { SectionEyebrow, ScreenTitle, ScreenSub, VxButton, VxInput, VxCard } from '@/components/vx';
 
 interface EmailSettings {
+  provider: string;
   enabled: boolean;
   host: string;
   port: number;
@@ -24,7 +25,15 @@ interface EmailSettings {
   use_ssl: boolean;
   public_base_url: string;
   password_configured: boolean;
+  postal_host: string;
+  postal_api_key_configured: boolean;
   public_dashboard_url_default: string;
+}
+
+interface BridgeSettings {
+  enabled: boolean;
+  token_configured: boolean;
+  docker_command: string;
 }
 
 export default function SettingsScreen() {
@@ -35,10 +44,15 @@ export default function SettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [s, setS] = useState<EmailSettings | null>(null);
   const [form, setForm] = useState({
-    enabled: false, host: '', port: '587', user: '', smtp_password: '',
+    provider: 'smtp', enabled: false, host: '', port: '587', user: '', smtp_password: '',
     from_email: '', from_name: '', use_tls: true, use_ssl: false, public_base_url: '',
+    postal_host: '', postal_api_key: '',
   });
   const [testTo, setTestTo] = useState('');
+  const [bridge, setBridge] = useState<BridgeSettings | null>(null);
+  const [bridgeLoading, setBridgeLoading] = useState(false);
+  const [bridgeTokenLoading, setBridgeTokenLoading] = useState(false);
+  const [bridgeCopyLabel, setBridgeCopyLabel] = useState('Copy');
 
   const load = useCallback(async () => {
     if (!isAdmin) { setLoading(false); return; }
@@ -46,30 +60,61 @@ export default function SettingsScreen() {
       const data = await api<EmailSettings>('/api/v1/settings/email');
       setS(data);
       setForm({
-        enabled: data.enabled, host: data.host, port: String(data.port || 587),
-        user: data.user, smtp_password: '', from_email: data.from_email, from_name: data.from_name,
+        provider: data.provider || 'smtp', enabled: data.enabled,
+        host: data.host, port: String(data.port || 587),
+        user: data.user, smtp_password: '',
+        from_email: data.from_email, from_name: data.from_name,
         use_tls: data.use_tls, use_ssl: data.use_ssl, public_base_url: data.public_base_url,
+        postal_host: data.postal_host || '', postal_api_key: '',
       });
     } finally { setLoading(false); }
   }, [isAdmin]);
 
-  useEffect(() => { void load(); }, [load]);
+  const loadBridge = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      setBridgeLoading(true);
+      const data = await api<BridgeSettings>('/api/v1/settings/bridge');
+      setBridge(data);
+    } catch { /* bridge endpoint may not exist yet */ }
+    finally { setBridgeLoading(false); }
+  }, [isAdmin]);
+
+  useEffect(() => { void load(); void loadBridge(); }, [load, loadBridge]);
 
   const save = async () => {
-    if (!form.host.trim() || !form.from_email.trim()) {
-      Alert.alert('Validation', 'Host and from email are required'); return;
+    if (!form.from_email.trim()) {
+      Alert.alert('Validation', 'From email is required'); return;
+    }
+    const isPostal = form.provider === 'postal';
+    if (isPostal && !form.postal_host.trim()) {
+      Alert.alert('Validation', 'Postal server URL is required'); return;
+    }
+    if (!isPostal && !form.host.trim()) {
+      Alert.alert('Validation', 'SMTP host is required'); return;
     }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        enabled: form.enabled, host: form.host.trim(), port: parseInt(form.port, 10) || 587,
-        user: form.user.trim(), from_email: form.from_email.trim(), from_name: form.from_name.trim(),
-        use_tls: form.use_tls, use_ssl: form.use_ssl, public_base_url: form.public_base_url.trim(),
+        provider: form.provider,
+        enabled: form.enabled,
+        from_email: form.from_email.trim(), from_name: form.from_name.trim(),
+        public_base_url: form.public_base_url.trim(),
       };
-      if (form.smtp_password) payload.smtp_password = form.smtp_password;
+      if (isPostal) {
+        payload.postal_host = form.postal_host.trim();
+        if (form.postal_api_key) payload.postal_api_key = form.postal_api_key;
+      } else {
+        payload.host = form.host.trim();
+        payload.port = parseInt(form.port, 10) || 587;
+        payload.user = form.user.trim();
+        payload.use_tls = form.use_tls;
+        payload.use_ssl = form.use_ssl;
+        if (form.smtp_password) payload.smtp_password = form.smtp_password;
+      }
       await api('/api/v1/settings/email', { method: 'PATCH', body: JSON.stringify(payload) });
       await load();
-      Alert.alert('Saved', 'SMTP settings updated.');
+      Alert.alert('Saved', 'Email settings updated.');
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save');
     } finally { setSaving(false); }
@@ -86,6 +131,36 @@ export default function SettingsScreen() {
     } finally { setTesting(false); }
   };
 
+  const generateBridgeToken = async () => {
+    setBridgeTokenLoading(true);
+    try {
+      const data = await api<BridgeSettings>('/api/v1/settings/bridge/generate', { method: 'POST' });
+      setBridge(data);
+      Alert.alert('Token generated', 'Your bridge agent token is ready. Copy the Docker command below.');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to generate token');
+    } finally { setBridgeTokenLoading(false); }
+  };
+
+  const revokeBridgeToken = async () => {
+    setBridgeTokenLoading(true);
+    try {
+      await api('/api/v1/settings/bridge/revoke', { method: 'POST' });
+      setBridge({ enabled: false, token_configured: false, docker_command: '' });
+      Alert.alert('Revoked', 'Bridge token has been revoked.');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to revoke token');
+    } finally { setBridgeTokenLoading(false); }
+  };
+
+  const copyDockerCommand = () => {
+    if (!bridge?.docker_command) return;
+    navigator.clipboard.writeText(bridge.docker_command).then(
+      () => { setBridgeCopyLabel('Copied!'); setTimeout(() => setBridgeCopyLabel('Copy'), 2000); },
+      () => Alert.alert('Copy failed', 'Could not copy to clipboard'),
+    );
+  };
+
   if (!isAdmin) {
     return (
       <View style={styles.root}>
@@ -98,7 +173,7 @@ export default function SettingsScreen() {
           <View style={{ marginTop: Space.xl }}>
             <SectionEyebrow>Access</SectionEyebrow>
           </View>
-          <ScreenTitle>SMTP — admin only</ScreenTitle>
+          <ScreenTitle>Email — admin only</ScreenTitle>
           <ScreenSub>Contact your administrator to configure system email.</ScreenSub>
         </ScrollView>
       </View>
@@ -126,16 +201,16 @@ export default function SettingsScreen() {
         <AppearanceCard />
 
         <View style={{ marginTop: Space.xl }}>
-          <SectionEyebrow>System · SMTP</SectionEyebrow>
+          <SectionEyebrow>System · Email</SectionEyebrow>
         </View>
         <ScreenTitle>Email configuration</ScreenTitle>
-        <ScreenSub>Configure outgoing SMTP for alert notifications and operator invites.</ScreenSub>
+        <ScreenSub>Configure outgoing email for alert notifications and operator invites.</ScreenSub>
 
         {/* Enable toggle */}
         <VxCard style={{ marginTop: Space.lg }}>
           <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.toggleLbl}>Enable SMTP</Text>
+              <Text style={styles.toggleLbl}>Enable email</Text>
               <Text style={styles.toggleDesc}>Send notifications for alerts and operator invites</Text>
             </View>
             <Switch
@@ -143,49 +218,94 @@ export default function SettingsScreen() {
               onValueChange={(v) => setForm({ ...form, enabled: v })}
               trackColor={{ false: C.surface3, true: C.primary }}
               thumbColor="#fff"
-              testID="smtp-enabled-toggle"
+              testID="email-enabled-toggle"
             />
           </View>
         </VxCard>
 
-        {/* Server */}
-        <VxCard style={{ marginTop: Space.md, gap: Space.md }}>
-          <Text style={styles.sectionTitle}>Server</Text>
-          <VxInput label="SMTP host" placeholder="smtp.gmail.com" value={form.host} onChangeText={(v) => setForm({ ...form, host: v })} autoCapitalize="none" testID="smtp-host" />
-          <VxInput label="Port" placeholder="587" value={form.port} onChangeText={(v) => setForm({ ...form, port: v })} keyboardType="number-pad" testID="smtp-port" />
-          <VxInput label="Username" placeholder="you@company.com" value={form.user} onChangeText={(v) => setForm({ ...form, user: v })} autoCapitalize="none" testID="smtp-user" />
-          <VxInput
-            label={`Password${s?.password_configured ? ' (configured)' : ''}`}
-            placeholder={s?.password_configured ? '••••••••' : 'Enter password'}
-            value={form.smtp_password}
-            onChangeText={(v) => setForm({ ...form, smtp_password: v })}
-            secureTextEntry
-            testID="smtp-password"
-          />
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLbl}>Use TLS</Text>
-            <Switch
-              value={form.use_tls}
-              onValueChange={(v) => setForm({ ...form, use_tls: v, use_ssl: v ? false : form.use_ssl })}
-              trackColor={{ false: C.surface3, true: C.primary }} thumbColor="#fff" testID="smtp-tls"
-            />
-          </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLbl}>Use SSL</Text>
-            <Switch
-              value={form.use_ssl}
-              onValueChange={(v) => setForm({ ...form, use_ssl: v, use_tls: v ? false : form.use_tls })}
-              trackColor={{ false: C.surface3, true: C.primary }} thumbColor="#fff" testID="smtp-ssl"
-            />
+        {/* Provider selector */}
+        <VxCard style={{ marginTop: Space.md }}>
+          <Text style={styles.sectionTitle}>Provider</Text>
+          <View style={styles.providerRow}>
+            {(['smtp', 'postal'] as const).map((p) => {
+              const active = form.provider === p;
+              return (
+                <Pressable
+                  key={p}
+                  onPress={() => setForm({ ...form, provider: p })}
+                  style={[styles.providerOpt, active && styles.providerOptActive]}
+                  testID={`provider-${p}`}
+                >
+                  <MaterialCommunityIcons
+                    name={p === 'smtp' ? 'email-outline' : 'email-fast-outline'}
+                    size={16}
+                    color={active ? C.primary : C.textMuted}
+                  />
+                  <Text style={[styles.providerLbl, active && styles.providerLblActive]}>
+                    {p === 'smtp' ? 'SMTP' : 'Postal'}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </VxCard>
 
-        {/* Email */}
+        {/* SMTP fields */}
+        {form.provider === 'smtp' && (
+          <VxCard style={{ marginTop: Space.md, gap: Space.md }}>
+            <Text style={styles.sectionTitle}>Server</Text>
+            <VxInput label="SMTP host" placeholder="smtp.gmail.com" value={form.host} onChangeText={(v) => setForm({ ...form, host: v })} autoCapitalize="none" testID="smtp-host" />
+            <VxInput label="Port" placeholder="587" value={form.port} onChangeText={(v) => setForm({ ...form, port: v })} keyboardType="number-pad" testID="smtp-port" />
+            <VxInput label="Username" placeholder="you@company.com" value={form.user} onChangeText={(v) => setForm({ ...form, user: v })} autoCapitalize="none" testID="smtp-user" />
+            <VxInput
+              label={`Password${s?.password_configured ? ' (configured)' : ''}`}
+              placeholder={s?.password_configured ? '••••••••' : 'Enter password'}
+              value={form.smtp_password}
+              onChangeText={(v) => setForm({ ...form, smtp_password: v })}
+              secureTextEntry
+              testID="smtp-password"
+            />
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLbl}>Use TLS</Text>
+              <Switch
+                value={form.use_tls}
+                onValueChange={(v) => setForm({ ...form, use_tls: v, use_ssl: v ? false : form.use_ssl })}
+                trackColor={{ false: C.surface3, true: C.primary }} thumbColor="#fff" testID="smtp-tls"
+              />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLbl}>Use SSL</Text>
+              <Switch
+                value={form.use_ssl}
+                onValueChange={(v) => setForm({ ...form, use_ssl: v, use_tls: v ? false : form.use_tls })}
+                trackColor={{ false: C.surface3, true: C.primary }} thumbColor="#fff" testID="smtp-ssl"
+              />
+            </View>
+          </VxCard>
+        )}
+
+        {/* Postal fields */}
+        {form.provider === 'postal' && (
+          <VxCard style={{ marginTop: Space.md, gap: Space.md }}>
+            <Text style={styles.sectionTitle}>Postal API</Text>
+            <VxInput label="Postal server URL" placeholder="https://postal.example.com" value={form.postal_host} onChangeText={(v) => setForm({ ...form, postal_host: v })} autoCapitalize="none" testID="postal-host" />
+            <VxInput
+              label={`API key${s?.postal_api_key_configured ? ' (configured)' : ''}`}
+              placeholder={s?.postal_api_key_configured ? '••••••••' : 'Enter API key'}
+              value={form.postal_api_key}
+              onChangeText={(v) => setForm({ ...form, postal_api_key: v })}
+              secureTextEntry
+              testID="postal-api-key"
+            />
+          </VxCard>
+        )}
+
+        {/* Identity (common to both providers) */}
         <VxCard style={{ marginTop: Space.md, gap: Space.md }}>
           <Text style={styles.sectionTitle}>Identity</Text>
-          <VxInput label="From email" placeholder="noreply@visionaryx.dev" value={form.from_email} onChangeText={(v) => setForm({ ...form, from_email: v })} autoCapitalize="none" keyboardType="email-address" testID="smtp-from-email" />
-          <VxInput label="From name" placeholder="VisionaryX Alerts" value={form.from_name} onChangeText={(v) => setForm({ ...form, from_name: v })} testID="smtp-from-name" />
-          <VxInput label="Public base URL" placeholder={s?.public_dashboard_url_default || 'https://visionaryx.app'} value={form.public_base_url} onChangeText={(v) => setForm({ ...form, public_base_url: v })} autoCapitalize="none" testID="smtp-base-url" />
+          <VxInput label="From email" placeholder="noreply@visionaryx.dev" value={form.from_email} onChangeText={(v) => setForm({ ...form, from_email: v })} autoCapitalize="none" keyboardType="email-address" testID="email-from-email" />
+          <VxInput label="From name" placeholder="VisionaryX Alerts" value={form.from_name} onChangeText={(v) => setForm({ ...form, from_name: v })} testID="email-from-name" />
+          <VxInput label="Public base URL" placeholder={s?.public_dashboard_url_default || 'https://visionaryx.app'} value={form.public_base_url} onChangeText={(v) => setForm({ ...form, public_base_url: v })} autoCapitalize="none" testID="email-base-url" />
         </VxCard>
 
         <View style={{ marginTop: Space.lg }}>
@@ -201,6 +321,64 @@ export default function SettingsScreen() {
             </View>
             <VxButton label="Send" onPress={test} busy={testing} variant="secondary" testID="test-send" />
           </View>
+        </VxCard>
+
+        {/* Bridge Agent */}
+        <View style={{ marginTop: Space.xl }}>
+          <SectionEyebrow>System · Bridge</SectionEyebrow>
+        </View>
+        <ScreenTitle>Bridge Agent</ScreenTitle>
+        <ScreenSub>Run a lightweight Docker container on your local network to securely proxy your RTSP cameras into the cloud — no port forwarding or public IP required.</ScreenSub>
+
+        <VxCard style={{ marginTop: Space.lg, gap: Space.md }}>
+          <Text style={styles.sectionTitle}>Setup</Text>
+          <Text style={styles.toggleDesc}>
+            Generate a unique token and run the command below on any machine that can reach your RTSP cameras.
+            The bridge agent will securely tunnel all camera streams to this server.
+          </Text>
+
+          {!bridge?.token_configured ? (
+            <View style={{ marginTop: Space.sm }}>
+              <VxButton
+                label="Generate bridge token"
+                onPress={generateBridgeToken}
+                busy={bridgeTokenLoading}
+                icon={<MaterialCommunityIcons name="link-variant-plus" size={14} color="#fff" />}
+                testID="bridge-generate"
+              />
+            </View>
+          ) : (
+            <>
+              <View style={styles.codeBlock}>
+                <Text style={styles.codeText}>{bridge.docker_command}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: Space.sm }}>
+                <View style={{ flex: 1 }}>
+                  <VxButton
+                    label={bridgeCopyLabel}
+                    onPress={copyDockerCommand}
+                    variant="secondary"
+                    icon={<MaterialCommunityIcons name="content-copy" size={14} color={C.text} />}
+                    testID="bridge-copy"
+                  />
+                </View>
+                <VxButton
+                  label="Regenerate"
+                  onPress={generateBridgeToken}
+                  busy={bridgeTokenLoading}
+                  variant="ghost"
+                  testID="bridge-regenerate"
+                />
+                <VxButton
+                  label="Revoke"
+                  onPress={revokeBridgeToken}
+                  busy={bridgeTokenLoading}
+                  variant="danger"
+                  testID="bridge-revoke"
+                />
+              </View>
+            </>
+          )}
         </VxCard>
       </ScrollView>
     </View>
@@ -278,4 +456,21 @@ const styles = StyleSheet.create({
   toggleLbl: { ...TextStyles.bodySmall, color: C.text, fontFamily: F.bodySemibold },
   toggleDesc: { ...TextStyles.caption, color: C.textMuted, marginTop: 2 },
   sectionTitle: { ...TextStyles.label, color: C.primaryAccent, marginBottom: 4 },
+  providerRow: { flexDirection: 'row', gap: Space.sm, marginTop: Space.xs },
+  providerOpt: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.sm,
+    padding: Space.sm + 2, borderRadius: Radius.md,
+    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface2,
+  },
+  providerOptActive: { borderColor: C.primary, backgroundColor: C.primaryFaint },
+  providerLbl: { ...TextStyles.bodySmall, color: C.textMuted, fontFamily: F.bodySemibold },
+  providerLblActive: { color: C.primary },
+  codeBlock: {
+    backgroundColor: C.surface2,
+    borderWidth: 1, borderColor: C.border, borderRadius: Radius.md,
+    padding: Space.md,
+  },
+  codeText: {
+    fontFamily: F.mono, fontSize: 12, color: C.text, lineHeight: 18,
+  },
 });
