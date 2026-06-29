@@ -32,6 +32,7 @@ export default function CamerasScreen() {
   const [pairInfo, setPairInfo] = useState<{ id: string; camera_name: string; pair_url: string } | null>(null);
   const [pairName, setPairName] = useState('');
   const [pairBaseUrl, setPairBaseUrl] = useState('');
+  const [pairToken, setPairToken] = useState<string | null>(null);
   const [viewing, setViewing] = useState<CameraModel | null>(null);
   const [editing, setEditing] = useState<CameraModel | null>(null);
 
@@ -152,6 +153,7 @@ export default function CamerasScreen() {
       if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
       const data = await r.json();
       const origin = pairBaseUrl || (typeof window !== 'undefined' && window.location?.origin) || base;
+      setPairToken(token);
       setPairInfo({
         id: data.id,
         camera_name: data.camera_name,
@@ -170,6 +172,7 @@ export default function CamerasScreen() {
     setPairInfo(null);
     setPairName('');
     setPairBaseUrl('');
+    setPairToken(null);
   };
 
   return (
@@ -451,7 +454,7 @@ export default function CamerasScreen() {
                   {Platform.OS === 'web' ? (
                     // @ts-expect-error — DOM img
                     <img
-                      src={`${getApiBase()}/api/v1/phone-cameras/${pairInfo.id}/qr.png?base=${encodeURIComponent(pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase()))}`}
+                      src={`${getApiBase()}/api/v1/phone-cameras/${pairInfo.id}/qr.png?base=${encodeURIComponent(pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase()))}&token=${encodeURIComponent(pairToken || '')}`}
                       alt="Pair QR"
                       style={{ width: 220, height: 220, display: 'block' }}
                     />

@@ -31,11 +31,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from deps import current_user, get_db, require_admin
+from deps import JWT_ALGORITHM, JWT_SECRET, current_user, get_db, require_admin
 
 router = APIRouter(prefix="/phone-cameras", tags=["phone-cameras"])
 
@@ -131,9 +132,21 @@ async def phone_camera_qr(
     camera_id: str,
     request: Request,
     base: str | None = Query(None, description="Override base URL (e.g. https://app.example.com)"),
-    _: dict[str, Any] = Depends(require_admin),
+    token: str | None = Query(None, description="JWT for img tag auth (no Authorization header)"),
 ) -> Response:
     import qrcode
+
+    # Auth via query token (<img> tags can't send Authorization headers).
+    if not token:
+        raise HTTPException(status_code=401, detail="Token query param required")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("role") not in ("admin", "operator"):
+            raise HTTPException(status_code=403, detail="Admin or operator role required")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     db = get_db()
     cam = await db.cameras.find_one({"_id": camera_id, "kind": "phone"})
@@ -238,12 +251,10 @@ async def phone_camera_mjpeg(
     token: str = Query(...),
 ):
     """MJPEG re-stream of cached phone frames. Token = bearer JWT (query)."""
-    import jwt as _jwt
     from fastapi.responses import StreamingResponse
-    from deps import JWT_ALGORITHM, JWT_SECRET
 
     try:
-        _jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Auth: {e}")
 
