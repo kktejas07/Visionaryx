@@ -31,6 +31,7 @@ export default function CamerasScreen() {
   const [pairOpen, setPairOpen] = useState(false);
   const [pairInfo, setPairInfo] = useState<{ id: string; camera_name: string; pair_url: string } | null>(null);
   const [pairName, setPairName] = useState('');
+  const [pairBaseUrl, setPairBaseUrl] = useState('');
   const [viewing, setViewing] = useState<CameraModel | null>(null);
   const [editing, setEditing] = useState<CameraModel | null>(null);
 
@@ -150,7 +151,7 @@ export default function CamerasScreen() {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
       const data = await r.json();
-      const origin = (typeof window !== 'undefined' && window.location?.origin) || base;
+      const origin = pairBaseUrl || (typeof window !== 'undefined' && window.location?.origin) || base;
       setPairInfo({
         id: data.id,
         camera_name: data.camera_name,
@@ -168,6 +169,7 @@ export default function CamerasScreen() {
     setPairOpen(false);
     setPairInfo(null);
     setPairName('');
+    setPairBaseUrl('');
   };
 
   return (
@@ -419,6 +421,21 @@ export default function CamerasScreen() {
                     onChangeText={setPairName}
                     testID="pair-camera-name"
                   />
+                  <View>
+                    <Text style={[styles.metaLbl, { color: colors.textFaint, marginBottom: 4 }]}>APP URL (phone must reach this)</Text>
+                    <VxInput
+                      placeholder="http://192.168.x.x:8081"
+                      value={pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '')}
+                      onChangeText={setPairBaseUrl}
+                      autoCapitalize="none"
+                      testID="pair-base-url"
+                    />
+                    {pairBaseUrl && /localhost|127\.0\.0\.1/.test(pairBaseUrl) ? (
+                      <Text style={[styles.pairBlurb, { color: colors.warning, marginTop: 6, fontSize: 11 }]}>
+                        Your phone cannot reach localhost. Replace with your computer's LAN IP (e.g. 192.168.1.5) and the same port.
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
                 <View style={styles.modalActions}>
                   <VxButton label="Cancel" variant="secondary" onPress={closePairModal} testID="pair-camera-cancel" />
@@ -434,7 +451,7 @@ export default function CamerasScreen() {
                   {Platform.OS === 'web' ? (
                     // @ts-expect-error — DOM img
                     <img
-                      src={`${getApiBase()}/api/v1/phone-cameras/${pairInfo.id}/qr.png?base=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
+                      src={`${getApiBase()}/api/v1/phone-cameras/${pairInfo.id}/qr.png?base=${encodeURIComponent(pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase()))}`}
                       alt="Pair QR"
                       style={{ width: 220, height: 220, display: 'block' }}
                     />

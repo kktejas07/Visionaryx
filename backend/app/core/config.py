@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     # Default base URL for enrollment links in emails (override per-tenant in Email & SMTP settings).
     PUBLIC_DASHBOARD_URL: str = "http://localhost:3000"
+    # Public frontend URL for phone camera pairing QR codes (must be reachable by phones on same LAN).
+    # Set to your computer's LAN IP + Expo port, e.g. http://192.168.1.5:8081
+    PUBLIC_FRONTEND_URL: str = ""
     # Public API URL for mobile app remote access (e.g., ngrok tunnel URL)
     PUBLIC_API_URL: str = ""
     ALGORITHM: str = "HS256"

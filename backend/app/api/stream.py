@@ -4,6 +4,7 @@ Live camera feed endpoints.
 """
 import asyncio
 import logging
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -72,17 +73,23 @@ async def _generate_mjpeg(camera_id: int):
     from app.services.stream_manager import _get_no_signal_frame
 
     boundary = "frame"
+    last_sent_ts = 0.0
     while True:
         frame = get_frame(camera_id)
         if not frame:
             frame = _get_no_signal_frame()
+        now = time.time()
+        if now - last_sent_ts < 0.033:
+            await asyncio.sleep(0.033)
+            continue
+        last_sent_ts = now
         yield (
             b"--" + boundary.encode() + b"\r\n"
             b"Content-Type: image/jpeg\r\n"
             b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
             + frame + b"\r\n"
         )
-        # No delay - send frames as fast as they're available
+        await asyncio.sleep(0.001)
 
 
 @router.get("/{camera_id}/mjpeg")

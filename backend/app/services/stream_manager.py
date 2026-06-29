@@ -164,9 +164,10 @@ def _capture_loop_ffmpeg(camera_id: int, rtsp_url: str, stop_event: threading.Ev
 
         retry_count = 0
         count = 0
-        # Run detection every 2 frames for faster response while still being efficient
-        run_ai_every = 2
-        jpeg_q = 80  # Higher quality for clearer image
+        # Run detection every 5 frames — still fast enough for real-time overlay (~3 FPS AI)
+        # while keeping CPU low for smooth MJPEG streaming
+        run_ai_every = 5
+        jpeg_q = 82  # Good quality without excessive size
         assert proc.stdout is not None
 
         # Drain stderr in a thread so a full PIPE cannot deadlock FFmpeg on long runs.

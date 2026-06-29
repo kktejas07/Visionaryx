@@ -49,13 +49,16 @@ class PhoneCameraCreate(BaseModel):
 
 
 def _public_base_url(req: Request | None) -> str:
-    """QR host resolution: env first, then live request.base_url, finally empty."""
+    """QR host resolution: env first, then live request.base_url, finally empty.
+    
+    Note: This should be the FRONTEND URL (where /pair is served), not the backend.
+    The frontend passes 'base' as a query param — that takes priority.
+    """
     import os
-    env = os.environ.get("REACT_APP_BACKEND_URL")
-    if env:
-        return env
+    env_frontend = os.environ.get("PUBLIC_FRONTEND_URL") or os.environ.get("REACT_APP_BACKEND_URL")
+    if env_frontend:
+        return env_frontend.rstrip("/")
     if req is not None:
-        # request.base_url is like 'https://host/' — strip trailing slash.
         return str(req.base_url).rstrip("/")
     return ""
 

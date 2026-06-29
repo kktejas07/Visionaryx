@@ -160,8 +160,7 @@ def _draw_detections(frame: np.ndarray, faces: list[dict], objects: list[dict]) 
         bg_y2 = min(text_y + pad, h)
         if bg_x2 > bg_x1 and bg_y2 > bg_y1:
             roi = out[bg_y1:bg_y2, bg_x1:bg_x2]
-            dark = np.full_like(roi, (30, 30, 30), dtype=np.uint8)
-            out[bg_y1:bg_y2, bg_x1:bg_x2] = cv2.addWeighted(roi, 0.25, dark, 0.75, 0)
+            out[bg_y1:bg_y2, bg_x1:bg_x2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
         
         cv2.putText(out, label, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
         
@@ -198,8 +197,7 @@ def _draw_detections(frame: np.ndarray, faces: list[dict], objects: list[dict]) 
         bg_y2 = min(text_y + pad, h)
         if bg_x2 > bg_x1 and bg_y2 > bg_y1:
             roi = out[bg_y1:bg_y2, bg_x1:bg_x2]
-            dark = np.full_like(roi, (30, 30, 30), dtype=np.uint8)
-            out[bg_y1:bg_y2, bg_x1:bg_x2] = cv2.addWeighted(roi, 0.25, dark, 0.75, 0)
+            out[bg_y1:bg_y2, bg_x1:bg_x2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
         
         cv2.putText(out, name, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     return out
