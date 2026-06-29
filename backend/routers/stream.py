@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 
 import jwt
 import numpy as np
@@ -22,6 +23,25 @@ _FACE_DETECTOR = None
 _FACE_MATCHER = None
 _DRAW_DETECTIONS = None
 _AI_ENABLED = os.environ.get("STREAM_ENABLE_AI_OVERLAY", "").lower() in ("1", "true", "yes")
+_AI_FACE_ENABLED_DB: bool = True  # Overridden by MongoDB detection_overlays.face_detection_enabled
+_AI_FACE_LAST_CHECK = 0.0
+
+async def _refresh_ai_face_enabled():
+    """Read face_detection_enabled from MongoDB settings (refreshes every 5s)."""
+    global _AI_FACE_ENABLED_DB, _AI_FACE_LAST_CHECK
+    now = time.time()
+    if now - _AI_FACE_LAST_CHECK < 5:
+        return
+    _AI_FACE_LAST_CHECK = now
+    try:
+        db = get_db()
+        doc = await db.settings.find_one({"_id": "detection_overlays"})
+        if doc is not None and "face_detection_enabled" in doc:
+            _AI_FACE_ENABLED_DB = bool(doc["face_detection_enabled"])
+        else:
+            _AI_FACE_ENABLED_DB = True  # default: on
+    except Exception:
+        pass
 
 if _AI_ENABLED:
     try:
@@ -155,7 +175,13 @@ def _annotate_jpeg(jpeg_bytes: bytes) -> bytes:
     global _ai_counter
     _ai_counter += 1
 
-    if not _HAS_FACE_DETECTION or not _AI_ENABLED:
+    if not _HAS_FACE_DETECTION:
+        return jpeg_bytes
+
+    if not _AI_ENABLED and not _AI_FACE_ENABLED_DB:
+        return jpeg_bytes
+
+    if not _AI_FACE_ENABLED_DB:
         return jpeg_bytes
 
     # Run detection every 3rd frame to save CPU
@@ -230,6 +256,12 @@ async def _frame_grabber(rtsp_url: str, camera_id: str):
                     break
                 frame = buf[start:end + 2]
                 buf = buf[end + 2:]
+                if time.time() - _AI_FACE_LAST_CHECK > 5:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(_refresh_ai_face_enabled())
+                    except RuntimeError:
+                        pass
                 _latest_frames[camera_id] = _annotate_jpeg(frame)
                 ev = _frame_events.get(camera_id)
                 if ev is not None:

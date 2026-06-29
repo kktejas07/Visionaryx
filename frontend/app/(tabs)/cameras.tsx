@@ -204,7 +204,7 @@ export default function CamerasScreen() {
                 />
               </View>
               {isAdmin ? (
-                <>
+                <View style={styles.searchBtns}>
                   <VxButton
                     label="Add camera"
                     icon={<MaterialCommunityIcons name="plus" size={14} color="#fff" />}
@@ -218,7 +218,7 @@ export default function CamerasScreen() {
                     onPress={() => setPairOpen(true)}
                     testID="add-wireless-camera-btn"
                   />
-                </>
+                </View>
               ) : null}
             </View>
 
@@ -244,7 +244,7 @@ export default function CamerasScreen() {
               <Text style={styles.rowUrl} numberOfLines={1}>{item.rtsp_url}</Text>
             </View>
             <View style={styles.actionRow}>
-              <Pressable onPress={() => router.push(`/camera/${item.id}`)} style={styles.actionBtn} hitSlop={6}>
+              <Pressable onPress={() => setViewing(item)} style={styles.actionBtn} hitSlop={6}>
                 <MaterialCommunityIcons name="eye-outline" size={16} color={C.primaryAccent} />
               </Pressable>
               {isAdmin ? (
@@ -383,6 +383,13 @@ export default function CamerasScreen() {
                   testID="view-camera-edit"
                 />
               ) : null}
+              <VxButton
+                label="Live view"
+                variant="secondary"
+                onPress={() => { if (viewing) router.push(`/camera/${viewing.id}`); setViewing(null); }}
+                icon={<MaterialCommunityIcons name="video-outline" size={14} color={colors.text} />}
+                testID="view-camera-live"
+              />
               <VxButton label="Close" onPress={() => setViewing(null)} testID="view-camera-close" />
             </View>
           </View>
@@ -513,6 +520,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.md, paddingVertical: 10,
   },
   searchInput: { flex: 1, paddingLeft: Space.sm, outline: 'none' as any },
+  searchBtns: { flexDirection: 'row', gap: Space.sm, flexShrink: 0 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
