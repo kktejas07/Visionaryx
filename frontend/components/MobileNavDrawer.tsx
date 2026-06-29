@@ -37,6 +37,7 @@ const SECTIONS: Array<{ title: string; items: Entry[] }> = [
       { href: '/detections', label: 'Detections', icon: 'account-search', testID: 'drawer-detections', hideForEnrollee: true },
       { href: '/analytics', label: 'Analytics', icon: 'chart-line', testID: 'drawer-analytics', hideForEnrollee: true },
       { href: '/reports', label: 'Reports', icon: 'file-chart-outline', testID: 'drawer-reports', hideForEnrollee: true },
+      { href: '/docs', label: 'Documentation', icon: 'book-open-page-variant-outline', testID: 'drawer-docs' },
       { href: '/users', label: 'Users', icon: 'account-group-outline', testID: 'drawer-users', adminOnly: true },
       { href: '/audit', label: 'Audit log', icon: 'history', testID: 'drawer-audit', adminOnly: true },
       { href: '/settings', label: 'Settings', icon: 'cog-outline', testID: 'drawer-settings' },

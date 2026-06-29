@@ -28,6 +28,7 @@ const LINKS: QuickLink[] = [
   { href: '/detections', label: 'Detections', desc: 'Forensic search across all events', icon: 'account-search', testID: 'more-detections' },
   { href: '/analytics', label: 'Analytics', desc: 'Trends, object distribution, anomalies', icon: 'chart-line', testID: 'more-analytics' },
   { href: '/reports', label: 'Reports', desc: 'Filterable detection records + Excel export', icon: 'file-chart-outline', testID: 'more-reports' },
+  { href: '/docs', label: 'Documentation', desc: 'Camera setup, streaming modes, face detection', icon: 'book-open-page-variant-outline', testID: 'more-docs' },
   { href: '/users', label: 'User management', desc: 'Operators, enrollees, role control', icon: 'account-group-outline', adminOnly: true, testID: 'more-users' },
   { href: '/audit', label: 'Audit log', desc: 'Chronological admin activity', icon: 'clipboard-text-clock-outline', adminOnly: true, testID: 'more-audit' },
   { href: '/settings', label: 'Settings', desc: 'SMTP, brand, security, integrations', icon: 'cog-outline', adminOnly: true, testID: 'more-settings' },

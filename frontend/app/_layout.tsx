@@ -120,6 +120,7 @@ function NavStack() {
           <Stack.Screen name="pair" options={{ headerShown: false }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="users" options={{ headerShown: false }} />
+          <Stack.Screen name="docs" options={{ title: 'Documentation' }} />
           <Stack.Screen name="ai/index" options={{ headerShown: false }} />
           <Stack.Screen name="ai/chat" options={{ headerShown: false }} />
           <Stack.Screen name="ai/agents" options={{ headerShown: false }} />

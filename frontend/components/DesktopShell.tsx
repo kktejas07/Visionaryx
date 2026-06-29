@@ -44,6 +44,7 @@ const SECONDARY: NavItem[] = [
   { href: '/detections', label: 'Detections', icon: 'account-search', testID: 'nav-detections', hideForEnrollee: true },
   { href: '/analytics', label: 'Analytics', icon: 'chart-line', testID: 'nav-analytics', hideForEnrollee: true },
   { href: '/reports', label: 'Reports', icon: 'file-chart-outline', testID: 'nav-reports', hideForEnrollee: true },
+  { href: '/docs', label: 'Docs', icon: 'book-open-page-variant-outline', iconActive: 'book-open-page-variant', testID: 'nav-docs' },
   { href: '/users', label: 'Users', icon: 'account-group-outline', testID: 'nav-users', hideForEnrollee: true },
   { href: '/audit', label: 'Audit log', icon: 'clipboard-text-clock-outline', testID: 'nav-audit', hideForEnrollee: true },
   { href: '/settings', label: 'Settings', icon: 'cog-outline', testID: 'nav-settings', hideForEnrollee: true },
