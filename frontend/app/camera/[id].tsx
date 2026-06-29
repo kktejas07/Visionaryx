@@ -2,15 +2,28 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getStoredToken, streamMjpegUrl, api } from '@/lib/api';
+import { getStoredToken, api } from '@/lib/api';
 import { getApiBase } from '@/lib/config';
-import { Stitch, FontFamily } from '@/constants/stitchTheme';
+import { PaletteDark as C, FontFamily as F, Radius, Space, TextStyles } from '@/constants/visionTheme';
 import MjpegStreamView from '@/components/MjpegStreamView';
 
 type CameraDetails = {
   id: string;
   camera_name: string;
+  kind?: 'rtsp' | 'phone';
+  rtsp_url?: string;
+  status?: string;
+  pair_token?: string;
 };
+
+function buildMjpegUri(cam: CameraDetails, token: string): string {
+  const base = getApiBase();
+  const tq = encodeURIComponent(token);
+  if (cam.kind === 'phone') {
+    return `${base}/api/v1/cameras/${cam.id}/stream.mjpeg?token=${tq}`;
+  }
+  return `${base}/api/v1/stream/${cam.id}/mjpeg?token=${tq}`;
+}
 
 export default function CameraViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,13 +41,13 @@ export default function CameraViewerScreen() {
       try {
         const [t, details] = await Promise.all([
           getStoredToken(),
-          api<CameraDetails>(`/api/v1/cameras/${id}`)
+          api<CameraDetails>(`/api/v1/cameras/${id}`),
         ]);
         if (cancelled) return;
         setCam(details);
-        if (t) {
+        if (t && details) {
           setToken(t);
-          setUri(streamMjpegUrl(id, t));
+          setUri(buildMjpegUri(details, t));
         }
       } catch (e) {
         console.error('Failed to load camera', e);
@@ -64,11 +77,11 @@ export default function CameraViewerScreen() {
   const isWeb = typeof document !== 'undefined';
 
   return (
-    <View style={[styles.root, { backgroundColor: Stitch.surface }]}>
+    <View style={[styles.root, { backgroundColor: C.surface }]}>
       <View style={styles.viewerContainer}>
         {!uri ? (
           <View style={styles.loader}>
-            <ActivityIndicator size="large" color={Stitch.primary} />
+            <ActivityIndicator size="large" color={C.primaryAccent} />
             <Text style={styles.loaderText}>Establishing Secure Connection...</Text>
           </View>
         ) : (
@@ -104,7 +117,7 @@ export default function CameraViewerScreen() {
          </Pressable>
          <View style={{flex: 1}} />
          <Pressable style={styles.actionBtn} onPress={() => setGearOpen(true)}>
-            <MaterialCommunityIcons name="cog-outline" size={24} color={Stitch.onSurfaceVariant} />
+            <MaterialCommunityIcons name="cog-outline" size={24} color={C.textMuted} />
          </Pressable>
       </View>
 
@@ -115,7 +128,7 @@ export default function CameraViewerScreen() {
             <Text style={styles.gearTitle}>Stream Settings</Text>
 
             <Pressable style={styles.gearRow} onPress={captureSnapshot}>
-              <MaterialCommunityIcons name="camera" size={20} color={Stitch.primary} />
+              <MaterialCommunityIcons name="camera" size={20} color={C.primaryAccent} />
               <Text style={styles.gearLabel}>Snapshot</Text>
               <Text style={styles.gearDesc}>Download current frame as JPEG</Text>
             </Pressable>
@@ -129,7 +142,7 @@ export default function CameraViewerScreen() {
             <View style={styles.gearDivider} />
 
             <Text style={styles.gearInfo}>Stream: MJPEG · 15 fps</Text>
-            <Text style={styles.gearInfo}>Quality: 480p (balanced)</Text>
+            <Text style={styles.gearInfo}>Type: {cam?.kind === 'phone' ? 'Wireless' : 'RTSP'}</Text>
 
             <Pressable style={styles.gearClose} onPress={() => setGearOpen(false)}>
               <Text style={styles.gearCloseText}>Close</Text>
@@ -145,34 +158,34 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   viewerContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
   loader: { alignItems: 'center', gap: 16 },
-  loaderText: { color: Stitch.onSurfaceVariant, fontFamily: FontFamily.labelSemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
+  loaderText: { color: C.textMuted, fontFamily: F.bodySemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
   feedWrapper: { flex: 1, position: 'relative' },
   web: { flex: 1, backgroundColor: '#000' },
   overlayTop: { position: 'absolute', top: 20, left: 20, right: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(211, 47, 47, 0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
-  liveText: { color: '#fff', fontFamily: FontFamily.labelSemibold, fontSize: 10, letterSpacing: 1 },
+  liveText: { color: '#fff', fontFamily: F.bodySemibold, fontSize: 10, letterSpacing: 1 },
   camNameTag: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  camNameText: { color: Stitch.primary, fontFamily: FontFamily.labelSemibold, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' },
+  camNameText: { color: C.primaryAccent, fontFamily: F.bodySemibold, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' },
   overlayBottom: { position: 'absolute', bottom: 20, left: 20 },
   timeTag: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
-  timeText: { color: 'rgba(255,255,255,0.7)', fontFamily: FontFamily.body, fontSize: 10, fontVariant: ['tabular-nums'] },
-  controls: { height: 100, backgroundColor: Stitch.surfaceContainerLowest, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  timeText: { color: 'rgba(255,255,255,0.7)', fontFamily: F.body, fontSize: 10, fontVariant: ['tabular-nums'] },
+  controls: { height: 100, backgroundColor: C.surface2, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   controlBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  controlText: { color: '#fff', fontFamily: FontFamily.labelSemibold, fontSize: 14 },
+  controlText: { color: '#fff', fontFamily: F.bodySemibold, fontSize: 14 },
   recordBtn: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   recordInner: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#d32f2f' },
   actionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 
   // Gear modal
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  gearSheet: { backgroundColor: Stitch.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24, paddingBottom: 40 },
-  gearTitle: { fontFamily: FontFamily.headline, fontSize: 18, color: '#fff', marginBottom: 20 },
+  gearSheet: { backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24, paddingBottom: 40 },
+  gearTitle: { fontFamily: F.heading, fontSize: 18, color: '#fff', marginBottom: 20 },
   gearRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  gearLabel: { fontFamily: FontFamily.labelSemibold, fontSize: 15, color: '#fff', flex: 1 },
-  gearDesc: { fontFamily: FontFamily.body, fontSize: 12, color: Stitch.onSurfaceVariant },
+  gearLabel: { fontFamily: F.bodySemibold, fontSize: 15, color: '#fff', flex: 1 },
+  gearDesc: { fontFamily: F.body, fontSize: 12, color: C.textMuted },
   gearDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 8 },
-  gearInfo: { fontFamily: FontFamily.mono, fontSize: 11, color: Stitch.onSurfaceVariant, marginTop: 4 },
-  gearClose: { marginTop: 20, alignItems: 'center', paddingVertical: 12, borderRadius: 8, backgroundColor: Stitch.surfaceContainerHighest },
-  gearCloseText: { fontFamily: FontFamily.labelSemibold, fontSize: 15, color: Stitch.primary },
+  gearInfo: { fontFamily: F.mono, fontSize: 11, color: C.textMuted, marginTop: 4 },
+  gearClose: { marginTop: 20, alignItems: 'center', paddingVertical: 12, borderRadius: 8, backgroundColor: C.surface2 },
+  gearCloseText: { fontFamily: F.bodySemibold, fontSize: 15, color: C.primaryAccent },
 });

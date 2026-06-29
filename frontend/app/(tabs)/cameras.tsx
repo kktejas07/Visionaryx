@@ -58,6 +58,7 @@ export default function CamerasScreen() {
     (async () => {
       const token = await getStoredToken();
       if (!active) return;
+      setPairToken(token);
       const tokenQp = encodeURIComponent(token ?? '');
       const base = getApiBase();
       // Phone camera → skip HLS, go straight to the cached-frame MJPEG re-stream.
@@ -342,14 +343,36 @@ export default function CamerasScreen() {
                 </Text>
               </View>
               <View style={styles.metaCell}>
-                <Text style={[styles.metaLbl, { color: colors.textFaint }]}>ENABLED</Text>
-                <Text style={[styles.metaVal, { color: colors.text }]}>{viewing?.is_enabled ? 'YES' : 'NO'}</Text>
+                <Text style={[styles.metaLbl, { color: colors.textFaint }]}>TYPE</Text>
+                <Text style={[styles.metaVal, { color: colors.text }]}>{viewing?.kind === 'phone' ? 'WIRELESS' : 'RTSP'}</Text>
               </View>
               <View style={[styles.metaCell, { flexBasis: '100%' }]}>
                 <Text style={[styles.metaLbl, { color: colors.textFaint }]}>SOURCE URL</Text>
                 <Text style={[styles.metaUrl, { color: colors.text }]} numberOfLines={2}>{viewing?.rtsp_url}</Text>
               </View>
             </View>
+
+            {/* Pair QR for phone cameras */}
+            {viewing?.kind === 'phone' && isAdmin ? (
+              <View style={{ marginTop: Space.md, gap: Space.sm }}>
+                <Text style={[styles.metaLbl, { color: colors.textFaint }]}>PAIR QR &amp; URL</Text>
+                <View style={[styles.qrSmallFrame, { borderColor: colors.border }]}>
+                  {Platform.OS === 'web' ? (
+                    // @ts-expect-error — DOM img
+                    <img
+                      src={`${getApiBase()}/api/v1/phone-cameras/${viewing.id}/qr.png?base=${encodeURIComponent(pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase()))}&token=${encodeURIComponent(pairToken || '')}`}
+                      alt="Pair QR"
+                      style={{ width: 160, height: 160, display: 'block' }}
+                    />
+                  ) : null}
+                </View>
+                <View style={[styles.pairUrlWrap, { borderColor: colors.border }]}>
+                  <Text selectable style={[styles.pairUrlText, { color: colors.textMuted }]}>
+                    {pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase())}/pair?token=
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             <View style={styles.modalActions}>
               {isAdmin && viewing ? (
                 <VxButton
@@ -548,6 +571,9 @@ const styles = StyleSheet.create({
   metaLbl: { ...TextStyles.label, fontSize: 9 },
   metaVal: { ...TextStyles.body, fontFamily: F.mono, marginTop: 4, fontSize: 13 },
   metaUrl: { ...TextStyles.body, fontFamily: F.mono, marginTop: 4, fontSize: 12 },
+  qrSmallFrame: { alignSelf: 'center', backgroundColor: '#fff', borderRadius: Radius.md, padding: Space.sm, borderWidth: 2 },
+  pairUrlWrap: { padding: Space.sm, borderRadius: Radius.sm, borderWidth: 1, backgroundColor: 'transparent' },
+  pairUrlText: { ...TextStyles.caption, fontFamily: F.mono, fontSize: 11 },
   editToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: Space.sm,
