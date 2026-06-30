@@ -33,6 +33,8 @@ export default function CamerasScreen() {
   const [pairName, setPairName] = useState('');
   const [pairBaseUrl, setPairBaseUrl] = useState('');
   const [pairToken, setPairToken] = useState<string | null>(null);
+  const [pairUrlValue, setPairUrlValue] = useState<string>('');
+  const [qrRefresh, setQrRefresh] = useState(0);
   const [viewing, setViewing] = useState<CameraModel | null>(null);
   const [editing, setEditing] = useState<CameraModel | null>(null);
 
@@ -53,7 +55,7 @@ export default function CamerasScreen() {
   const [streamSrc, setStreamSrc] = useState<string | null>(null);
   const [streamMode, setStreamMode] = useState<'hls' | 'mjpeg' | 'loading'>('loading');
   useEffect(() => {
-    if (!viewing) { setStreamSrc(null); setStreamMode('loading'); return; }
+    if (!viewing) { setStreamSrc(null); setStreamMode('loading'); setPairUrlValue(''); return; }
     let active = true;
     (async () => {
       const token = await getStoredToken();
@@ -65,6 +67,17 @@ export default function CamerasScreen() {
       if (viewing.kind === 'phone') {
         setStreamMode('mjpeg');
         setStreamSrc(`${base}/api/v1/cameras/${viewing.id}/stream.mjpeg?token=${tokenQp}`);
+        // Fetch pair_token to show the real pair URL.
+        try {
+          const r = await fetch(`${base}/api/v1/cameras/${viewing.id}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (active && r.ok) {
+            const cam = await r.json();
+            const resolvedBase = pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : base);
+            setPairUrlValue(`${resolvedBase}/pair?token=${cam.pair_token || ''}`);
+          }
+        } catch {/* ignore */}
         return;
       }
       // RTSP camera: try HLS gateway first (real ffmpeg → HLS).
@@ -361,7 +374,7 @@ export default function CamerasScreen() {
                   {Platform.OS === 'web' ? (
                     // @ts-expect-error — DOM img
                     <img
-                      src={`${getApiBase()}/api/v1/phone-cameras/${viewing.id}/qr.png?base=${encodeURIComponent(pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase()))}&token=${encodeURIComponent(pairToken || '')}`}
+                      src={`${getApiBase()}/api/v1/phone-cameras/${viewing.id}/qr.png?base=${encodeURIComponent(pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase()))}&token=${encodeURIComponent(pairToken || '')}&_v=${qrRefresh}`}
                       alt="Pair QR"
                       style={{ width: 160, height: 160, display: 'block' }}
                     />
@@ -369,23 +382,25 @@ export default function CamerasScreen() {
                 </View>
                 <View style={[styles.pairUrlWrap, { borderColor: colors.border }]}>
                   <Text selectable style={[styles.pairUrlText, { color: colors.textMuted }]}>
-                    {pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase())}/pair?token=
+                    {pairUrlValue || `${pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase())}/pair?token=`}
                   </Text>
                 </View>
                 <VxButton
                   label="Regenerate token"
                   variant="ghost"
                   onPress={async () => {
-                    if (!token) return;
+                    if (!pairToken) return;
                     try {
                       const r = await fetch(`${getApiBase()}/api/v1/phone-cameras/${viewing.id}/regenerate-token`, {
                         method: 'POST',
-                        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        headers: { Authorization: `Bearer ${pairToken}`, 'Content-Type': 'application/json' },
                       });
                       if (r.ok) {
-                        vm.refresh();
-                        setViewing(null);
-                        Alert.alert('Done', 'Pairing token regenerated. Open the camera detail again to scan the new QR.');
+                        const data = await r.json();
+                        const resolvedBase = pairBaseUrl || (typeof window !== 'undefined' ? window.location.origin : getApiBase());
+                        setPairUrlValue(`${resolvedBase}/pair?token=${data.pair_token}`);
+                        setQrRefresh((v) => v + 1);
+                        Alert.alert('Done', 'Token regenerated. Scan the new QR.');
                       } else {
                         throw new Error(`HTTP ${r.status}`);
                       }

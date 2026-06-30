@@ -21,6 +21,7 @@ def _camera_public(doc: dict[str, Any]) -> dict[str, Any]:
         "is_enabled": doc.get("is_enabled", True),
         "status": doc.get("status", "active"),
         "kind": doc.get("kind", "rtsp"),
+        "pair_token": doc.get("pair_token", ""),
     }
 
 
