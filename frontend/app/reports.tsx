@@ -5,8 +5,8 @@
  * a CSV with a `.xlsx`-compatible content-type so Excel + Numbers open it
  * natively (full xlsx requires sheetjs which adds ~500KB; keeping it lean).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { api } from '@/lib/api';
@@ -36,6 +36,7 @@ interface Summary {
 }
 
 const WINDOW_OPTS = [7, 30, 90] as const;
+const PAGE_SIZE = 100;
 
 export default function ReportsScreen() {
   const colors = useColors();
@@ -44,23 +45,37 @@ export default function ReportsScreen() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'known' | 'unknown'>('all');
   const [summary, setSummary] = useState<Summary | null>(null);
   const [items, setItems] = useState<Detection[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const offsetRef = useRef(0);
+
+  const fetchPage = useCallback(async (offset: number, append: boolean) => {
+    const since = new Date(Date.now() - days * 86400 * 1000).toISOString();
+    const params = new URLSearchParams({ start: since, limit: String(PAGE_SIZE), offset: String(offset) });
+    if (person.trim()) params.set('person', person.trim());
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    const r = await api<{ items: Detection[]; total: number }>(`/api/v1/reports/detections?${params}`);
+    if (append) {
+      setItems((prev) => [...prev, ...r.items]);
+    } else {
+      setItems(r.items);
+    }
+    setTotal(r.total);
+    return r;
+  }, [days, person, statusFilter]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    offsetRef.current = 0;
     try {
-      const since = new Date(Date.now() - days * 86400 * 1000).toISOString();
-      const params = new URLSearchParams({ start: since, limit: '500' });
-      if (person.trim()) params.set('person', person.trim());
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      const [s, d] = await Promise.all([
+      const [s] = await Promise.all([
         api<Summary>(`/api/v1/reports/summary?days=${days}`),
-        api<{ items: Detection[]; total: number }>(`/api/v1/reports/detections?${params}`),
+        fetchPage(0, false),
       ]);
       setSummary(s);
-      setItems(d.items);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load reports');
       setSummary(null);
@@ -68,7 +83,18 @@ export default function ReportsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [days, person, statusFilter]);
+  }, [days, fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || items.length >= total) return;
+    setLoadingMore(true);
+    const nextOffset = offsetRef.current + PAGE_SIZE;
+    try {
+      await fetchPage(nextOffset, true);
+      offsetRef.current = nextOffset;
+    } catch {/* ignore */}
+    finally { setLoadingMore(false); }
+  }, [fetchPage, loadingMore, items.length, total]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -99,6 +125,9 @@ export default function ReportsScreen() {
         data={items}
         keyExtractor={(i) => i.id}
         contentContainerStyle={styles.pad}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={C.primaryAccent} />}
+        onEndReached={() => { if (items.length < total) loadMore(); }}
+        onEndReachedThreshold={0.3}
         ListHeaderComponent={
           <View>
             <View style={styles.headRow}>
@@ -215,7 +244,7 @@ export default function ReportsScreen() {
             </View>
 
             <Text style={[styles.tableHead, { color: colors.textFaint }]}>
-              {loading ? 'Loading…' : `Detection records · ${items.length}`}
+              {loading ? 'Loading…' : `Detection records · ${items.length} of ${total}`}
             </Text>
           </View>
         }
@@ -234,6 +263,17 @@ export default function ReportsScreen() {
         )}
         ItemSeparatorComponent={() => <View style={{ height: Space.xs }} />}
         ListEmptyComponent={!loading ? <Text style={[styles.empty, { color: colors.textMuted }]}>No detections in this window.</Text> : null}
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator color={C.primaryAccent} style={{ paddingVertical: Space.lg }} />
+          ) : items.length < total ? (
+            <Pressable onPress={() => loadMore()} style={styles.loadMoreBtn}>
+              <Text style={styles.loadMoreText}>Show more ({total - items.length} remaining)</Text>
+            </Pressable>
+          ) : items.length > 0 ? (
+            <Text style={styles.loadMoreText}>All {total} records loaded</Text>
+          ) : null
+        }
       />
     </View>
   );
@@ -331,4 +371,6 @@ const styles = StyleSheet.create({
   barLbl: { ...TextStyles.caption, fontFamily: F.mono, fontSize: 11, flexBasis: 140, flexShrink: 0 },
   barTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   barVal: { ...TextStyles.caption, fontFamily: F.mono, fontSize: 11, minWidth: 30, textAlign: 'right' },
+  loadMoreBtn: { alignItems: 'center', paddingVertical: Space.lg },
+  loadMoreText: { ...TextStyles.caption, color: C.textMuted, fontFamily: F.mono, fontSize: 11, textAlign: 'center', paddingVertical: Space.lg },
 });

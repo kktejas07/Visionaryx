@@ -14,6 +14,7 @@ router = APIRouter(tags=["detections"])
 @router.get("/detections")
 async def list_detections(
     limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     q: str | None = None,
     _: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
@@ -26,7 +27,7 @@ async def list_detections(
             {"message": {"$regex": q, "$options": "i"}},
             {"camera_name": {"$regex": q, "$options": "i"}},
         ]
-    docs = await db.alerts.find(flt).sort("timestamp", -1).limit(limit).to_list(limit)
+    docs = await db.alerts.find(flt).sort("timestamp", -1).skip(offset).limit(limit).to_list(limit)
     return {
         "items": [
             {

@@ -28,6 +28,7 @@ async def report_detections(
     camera_id: str | None = Query(None),
     status: str | None = Query(None, description="known | unknown"),
     limit: int = Query(500, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
     _: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     db = get_db()
@@ -51,7 +52,7 @@ async def report_detections(
         flt["alert_type"] = {"$regex": "Face", "$options": "i"}
     elif status == "unknown":
         flt["alert_type"] = {"$not": {"$regex": "Face", "$options": "i"}}
-    docs = await db.alerts.find(flt).sort("timestamp", -1).limit(limit).to_list(limit)
+    docs = await db.alerts.find(flt).sort("timestamp", -1).skip(offset).limit(limit).to_list(limit)
     total = await db.alerts.count_documents(flt)
     return {
         "items": [
