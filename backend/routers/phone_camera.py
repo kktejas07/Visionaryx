@@ -51,9 +51,10 @@ except Exception:
     np = None
 
 _phone_detection_counter: dict[str, int] = {}
-_PHONE_DETECT_EVERY = 3  # run detection every 3rd frame
+_PHONE_DETECT_EVERY = 3
 _phone_last_logged: dict[str, float] = {}
-_PHONE_LOG_COOLDOWN = 30  # seconds between alerts for same camera+person
+_PHONE_LOG_COOLDOWN = 30
+_phone_last_annots: dict[str, list[dict]] = {}
 
 
 async def _create_detection_alert(camera_id: str, user_name: str, status: str, confidence: float):
@@ -87,34 +88,43 @@ async def _create_detection_alert(camera_id: str, user_name: str, status: str, c
 
 
 def _annotate_phone_frame(camera_id: str, jpeg_bytes: bytes) -> tuple[bytes, list[dict]]:
-    """Decode JPEG → face detection → draw boxes → re-encode.
+    """Decode JPEG → face detection every Nth frame → draw boxes every frame.
+    Caches last annotations so boxes stay visible between detection runs.
     Returns (annotated_jpeg, detections_list)."""
+    global _phone_last_annots
     detections: list[dict] = []
     if not _HAS_FACE_DETECTION:
         return jpeg_bytes, detections
     _phone_detection_counter[camera_id] = _phone_detection_counter.get(camera_id, 0) + 1
-    if _phone_detection_counter[camera_id] % _PHONE_DETECT_EVERY != 0:
+    run_detection = (_phone_detection_counter[camera_id] % _PHONE_DETECT_EVERY == 0)
+
+    if not run_detection and camera_id not in _phone_last_annots:
         return jpeg_bytes, detections
+
     try:
         arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
         frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             return jpeg_bytes, detections
-        faces = _detect_faces(frame, for_embedding=False)
-        annots = []
-        for f in faces:
-            bbox = f.get("bbox")
-            if not bbox or f.get("det_score", 0) < 0.3:
-                continue
-            status = "unknown"
-            label = "Unknown"
-            confidence = float(f.get("det_score", 0.5))
-            annots.append({"bbox": bbox, "status": status, "label": label})
-            detections.append({
-                "user_name": label,
-                "status": status,
-                "confidence": confidence,
-            })
+
+        annots: list[dict] = []
+        if run_detection:
+            faces = _detect_faces(frame, for_embedding=False)
+            for f in faces:
+                bbox = f.get("bbox")
+                if not bbox or f.get("det_score", 0) < 0.3:
+                    continue
+                status = "unknown"
+                label = "Unknown"
+                confidence = float(f.get("det_score", 0.5))
+                annots.append({"bbox": bbox, "status": status, "label": label})
+                detections.append({
+                    "user_name": label, "status": status, "confidence": confidence,
+                })
+            _phone_last_annots[camera_id] = annots
+        else:
+            annots = _phone_last_annots.get(camera_id, [])
+
         if annots:
             frame = _draw_annotations(frame, annots)
             _, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])

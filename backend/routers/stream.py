@@ -207,50 +207,48 @@ _ai_counter: int = 0
 _pending_detections: dict[str, list[dict]] = {}
 _last_detection_logged: dict[str, float] = {}
 _DETECTION_LOG_COOLDOWN = 30  # seconds between alerts for same camera+person
+# Cache last annotations per camera so boxes persist between detection frames.
+_last_face_annots: dict[str, list[dict]] = {}
 
 
-def _load_ai_embeddings():
-    """Load face embeddings from MongoDB users collection (sync helper)."""
+async def _load_ai_embeddings():
+    """Load face embeddings from MongoDB users collection into memory (async)."""
     global _ai_embeddings
+    if _ai_embeddings:
+        return
     try:
-        import asyncio
-        from deps import get_db
-        from motor.motor_asyncio import AsyncIOMotorDatabase
-
         db = get_db()
-
-        async def _fetch():
-            result = []
-            cursor = db.users.find(
-                {"face_embedding": {"$exists": True, "$ne": None}},
-                {"face_embedding": 1, "name": 1, "email": 1},
-            )
-            async for doc in cursor:
-                emb = doc.get("face_embedding")
-                if emb and isinstance(emb, list) and len(emb) > 0:
-                    result.append((doc.get("name") or doc.get("email", "?"), emb))
-            return result
-
-        _ai_embeddings = asyncio.run(_fetch())
+        cursor = db.users.find(
+            {"face_embedding": {"$exists": True, "$ne": None}},
+            {"face_embedding": 1, "name": 1, "email": 1},
+        )
+        result = []
+        async for doc in cursor:
+            emb = doc.get("face_embedding")
+            if emb and isinstance(emb, list) and len(emb) > 0:
+                result.append((doc.get("name") or doc.get("email", "?"), emb))
+        _ai_embeddings = result
         logger.info("Loaded %d face embeddings for detection", len(_ai_embeddings))
     except Exception as exc:
         logger.warning("Failed to load face embeddings: %s", exc)
 
 
 def _annotate_jpeg(jpeg_bytes: bytes, camera_id: str = "") -> bytes:
-    """Decode JPEG → run face detection → draw boxes → re-encode.
-    Also collects detection info for logging via _pending_detections."""
+    """Decode JPEG → run face detection every Nth frame → draw boxes every frame.
+    Caches last annotations so boxes stay visible between detection runs."""
     global _ai_counter, _pending_detections, _last_detection_logged
-    _ai_counter += 1
 
     if not _HAS_FACE_DETECTION:
         return jpeg_bytes
-
     if not _face_detection_effective_enabled():
+        _last_face_annots.pop(camera_id, None)
         return jpeg_bytes
 
-    # Run detection every 3rd frame to save CPU
-    if _ai_counter % 3 != 0:
+    _ai_counter += 1
+    run_detection = (_ai_counter % 3 == 0)
+
+    # No cached boxes yet and not a detection frame — nothing to do.
+    if not run_detection and camera_id not in _last_face_annots:
         return jpeg_bytes
 
     try:
@@ -259,51 +257,51 @@ def _annotate_jpeg(jpeg_bytes: bytes, camera_id: str = "") -> bytes:
         if frame is None:
             return jpeg_bytes
 
-        # Detect faces
-        faces = _FACE_DETECTOR(frame, for_embedding=False)
-        annots = []
+        annots: list[dict] = []
         collected: list[dict] = []
 
-        for f in faces:
-            bbox = f["bbox"]
-            if f.get("det_score", 0) < 0.3:
-                continue
-            status = "unknown"
-            label = "Unknown"
-            user_id = None
-            confidence = float(f.get("det_score", 0.5))
-            if _ai_embeddings and f.get("embedding"):
-                match = _FACE_MATCHER(f["embedding"], [(i, e) for i, (_, e) in enumerate(_ai_embeddings)])
-                if match is not None:
-                    idx, score = match
-                    status = "known"
-                    user_id = _ai_embeddings[idx][0] if idx < len(_ai_embeddings) else None
-                    label = _ai_embeddings[idx][1] if idx < len(_ai_embeddings) else "Known"
-                    confidence = score
-            annots.append({"bbox": bbox, "status": status, "label": label})
-            # Collect for logging (debounced).
-            dedup_key = f"{camera_id}:{label}"
-            last_ts = _last_detection_logged.get(dedup_key, 0)
-            if camera_id and (time.time() - last_ts) > _DETECTION_LOG_COOLDOWN:
-                _last_detection_logged[dedup_key] = time.time()
-                collected.append({
-                    "camera_id": camera_id,
-                    "user_name": label,
-                    "status": status,
-                    "confidence": confidence,
-                    "bbox": bbox,
-                })
-
-        if collected and camera_id:
-            _pending_detections.setdefault(camera_id, []).extend(collected)
+        if run_detection:
+            faces = _FACE_DETECTOR(frame, for_embedding=False)
+            for f in faces:
+                bbox = f.get("bbox")
+                if f.get("det_score", 0) < 0.3:
+                    continue
+                status = "unknown"
+                label = "Unknown"
+                confidence = float(f.get("det_score", 0.5))
+                if _ai_embeddings and f.get("embedding"):
+                    match = _FACE_MATCHER(f["embedding"], [(i, e) for i, (_, e) in enumerate(_ai_embeddings)])
+                    if match is not None:
+                        idx, score = match
+                        status = "known"
+                        label = _ai_embeddings[idx][0] if idx < len(_ai_embeddings) else "Known"
+                        confidence = score
+                annots.append({"bbox": bbox, "status": status, "label": label})
+                # Debounced logging.
+                dedup_key = f"{camera_id}:{label}"
+                last_ts = _last_detection_logged.get(dedup_key, 0)
+                if camera_id and (time.time() - last_ts) > _DETECTION_LOG_COOLDOWN:
+                    _last_detection_logged[dedup_key] = time.time()
+                    collected.append({
+                        "camera_id": camera_id,
+                        "user_name": label,
+                        "status": status,
+                        "confidence": confidence,
+                        "bbox": bbox,
+                    })
+            if camera_id:
+                _last_face_annots[camera_id] = annots
+            if collected and camera_id:
+                _pending_detections.setdefault(camera_id, []).extend(collected)
+        else:
+            # Reuse cached annotations from previous detection run.
+            annots = _last_face_annots.get(camera_id, [])
 
         if annots:
             frame = _draw_detections(frame, annots, [])
 
-        # Re-encode
         _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
         return buf.tobytes()
-
     except Exception:
         return jpeg_bytes
 
@@ -343,7 +341,7 @@ async def _frame_grabber(rtsp_url: str, camera_id: str):
 
     # Load face embeddings on first run (if detection is effectively enabled)
     if _HAS_FACE_DETECTION and not _ai_embeddings:
-        _load_ai_embeddings()
+        await _load_ai_embeddings()
 
     _det_count = 0
     while True:
