@@ -38,6 +38,83 @@ from pydantic import BaseModel
 
 from deps import JWT_ALGORITHM, JWT_SECRET, current_user, get_db, require_admin
 
+# -------------------------------------------------------------------- face detection (graceful fallback)
+try:
+    import cv2
+    import numpy as np
+    from app.ai.face_detector import detect_faces as _detect_faces
+    from app.ai.face_matcher import find_best_match as _find_best_match
+    _HAS_FACE_DETECTION = True
+except Exception:
+    _HAS_FACE_DETECTION = False
+    cv2 = None
+    np = None
+
+_phone_detection_counter: dict[str, int] = {}
+_PHONE_DETECT_EVERY = 3  # run detection every 3rd frame
+
+
+def _annotate_phone_frame(camera_id: str, jpeg_bytes: bytes) -> bytes:
+    """Decode JPEG → face detection → draw boxes → re-encode (phone camera)."""
+    if not _HAS_FACE_DETECTION:
+        return jpeg_bytes
+    _phone_detection_counter[camera_id] = _phone_detection_counter.get(camera_id, 0) + 1
+    if _phone_detection_counter[camera_id] % _PHONE_DETECT_EVERY != 0:
+        return jpeg_bytes
+    try:
+        arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return jpeg_bytes
+        faces = _detect_faces(frame, for_embedding=False)
+        annots = []
+        for f in faces:
+            bbox = f.get("bbox")
+            if not bbox or f.get("det_score", 0) < 0.3:
+                continue
+            status = "unknown"
+            label = "Unknown"
+            annots.append({"bbox": bbox, "status": status, "label": label})
+        if annots:
+            frame = _draw_annotations(frame, annots)
+            _, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            return buf.tobytes()
+    except Exception:
+        pass
+    return jpeg_bytes
+
+
+def _draw_annotations(frame, faces: list):
+    """Draw face bounding boxes — self-contained, no DB deps."""
+    out = frame.copy()
+    h, w = out.shape[:2]
+    for f in faces:
+        bbox = f.get("bbox")
+        if not bbox or len(bbox) < 4:
+            continue
+        x1, y1, x2, y2 = [int(x) for x in bbox[:4]]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        status = f.get("status", "unknown")
+        color = (0, 255, 0) if status == "known" else (0, 0, 255)
+        label = f.get("label") or ("Known" if status == "known" else "Unknown")
+        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+        pad = 3
+        tx, ty = x1, y1 - pad
+        if ty - th < 0:
+            ty = y2 + th + pad
+        tx = max(0, min(tx, w - tw - pad))
+        bgx1, bgy1 = max(tx - pad, 0), max(ty - th - pad, 0)
+        bgx2, bgy2 = min(tx + tw + pad, w), min(ty + pad, h)
+        if bgx2 > bgx1 and bgy2 > bgy1:
+            roi = out[bgy1:bgy2, bgx1:bgx2]
+            out[bgy1:bgy2, bgx1:bgx2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
+        cv2.putText(out, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    return out
+
 router = APIRouter(prefix="/phone-cameras", tags=["phone-cameras"])
 
 STALE_AFTER_S = 30                 # camera marked offline if no frame for this long
@@ -346,7 +423,7 @@ async def phone_camera_mjpeg(
                 cached = _phone_frame_cache.get(camera_id)
             if cached is not None and cached[1] != last_ts:
                 last_ts = cached[1]
-                body = cached[0]
+                body = _annotate_phone_frame(camera_id, cached[0])
                 yield (boundary + b"\r\nContent-Type: image/jpeg\r\n"
                        + b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n"
                        + body + b"\r\n")

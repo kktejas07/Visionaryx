@@ -21,7 +21,6 @@ logger = logging.getLogger("visioryx")
 _HAS_FACE_DETECTION = False
 _FACE_DETECTOR = None
 _FACE_MATCHER = None
-_DRAW_DETECTIONS = None
 _AI_FACE_ENABLED_DB: bool | None = None  # Overridden by MongoDB detection_overlays.face_detection_enabled
 _AI_FACE_LAST_CHECK = 0.0
 
@@ -53,15 +52,73 @@ def _face_detection_effective_enabled() -> bool:
 try:
     from app.ai.face_detector import detect_faces as _detect_faces
     from app.ai.face_matcher import find_best_match as _find_best_match
-    from app.services.detection_overlay import _draw_detections as _draw
     import cv2
     _HAS_FACE_DETECTION = True
+    _HAS_CV2 = True
     _FACE_DETECTOR = _detect_faces
     _FACE_MATCHER = _find_best_match
-    _DRAW_DETECTIONS = _draw
     logger.info("Face detection overlay ENABLED")
 except Exception as exc:
+    _HAS_CV2 = False
     logger.warning("Face detection modules not available: %s", exc)
+
+
+def _draw_detections(frame, faces: list, objects: list):
+    """Draw face and object boxes on frame — self-contained, no DB deps."""
+    out = frame.copy()
+    h, w = out.shape[:2] if out.ndim == 3 else (out.shape[0], out.shape[1])
+    import cv2 as _cv
+    for f in faces:
+        bbox = f.get("bbox")
+        if not bbox or len(bbox) < 4:
+            continue
+        x1, y1, x2, y2 = [int(x) for x in bbox[:4]]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        status = f.get("status", "unknown")
+        color = (0, 255, 0) if status == "known" else (0, 0, 255)
+        label = f.get("label") or ("Registered" if status == "known" else "Unknown")
+        _cv.rectangle(out, (x1, y1), (x2, y2), color, 2)
+        (text_w, text_h), _ = _cv.getTextSize(label, _cv.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+        pad = 3
+        text_x, text_y = x1, y1 - pad
+        if text_y - text_h < 0:
+            text_y = y2 + text_h + pad
+        if text_x + text_w > w:
+            text_x = max(w - text_w - pad, 0)
+        bg_x1, bg_y1 = max(text_x - pad, 0), max(text_y - text_h - pad, 0)
+        bg_x2, bg_y2 = min(text_x + text_w + pad, w), min(text_y + pad, h)
+        if bg_x2 > bg_x1 and bg_y2 > bg_y1:
+            roi = out[bg_y1:bg_y2, bg_x1:bg_x2]
+            out[bg_y1:bg_y2, bg_x1:bg_x2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
+        _cv.putText(out, label, (text_x, text_y), _cv.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+    for o in objects:
+        bbox = o.get("bbox")
+        if not bbox or len(bbox) < 4:
+            continue
+        x1, y1, x2, y2 = [int(x) for x in bbox[:4]]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        name = o.get("object_name", "?")
+        _cv.rectangle(out, (x1, y1), (x2, y2), (255, 128, 0), 2)
+        (_tw, _th), _ = _cv.getTextSize(name, _cv.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        _pad = 3
+        _tx, _ty = x1, y1 - _pad
+        if _ty - _th < 0:
+            _ty = y2 + _th + _pad
+        if _tx + _tw > w:
+            _tx = max(w - _tw - _pad, 0)
+        _bgx1, _bgy1 = max(_tx - _pad, 0), max(_ty - _th - _pad, 0)
+        _bgx2, _bgy2 = min(_tx + _tw + _pad, w), min(_ty + _pad, h)
+        if _bgx2 > _bgx1 and _bgy2 > _bgy1:
+            roi = out[_bgy1:_bgy2, _bgx1:_bgx2]
+            out[_bgy1:_bgy2, _bgx1:_bgx2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
+        _cv.putText(out, name, (_tx, _ty), _cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    return out
 
 router = APIRouter(tags=["stream"])
 
@@ -219,7 +276,7 @@ def _annotate_jpeg(jpeg_bytes: bytes) -> bytes:
             annots.append({"bbox": bbox, "status": status, "label": label})
 
         if annots:
-            frame = _DRAW_DETECTIONS(frame, annots, [])
+            frame = _draw_detections(frame, annots, [])
 
         # Re-encode
         _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
