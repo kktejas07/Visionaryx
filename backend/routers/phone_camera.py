@@ -151,7 +151,7 @@ def _draw_annotations(frame, faces: list):
         color = (0, 255, 0) if status == "known" else (0, 0, 255)
         label = f.get("label") or ("Known" if status == "known" else "Unknown")
         cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
         pad = 3
         tx, ty = x1, y1 - pad
         if ty - th < 0:
@@ -162,7 +162,7 @@ def _draw_annotations(frame, faces: list):
         if bgx2 > bgx1 and bgy2 > bgy1:
             roi = out[bgy1:bgy2, bgx1:bgx2]
             out[bgy1:bgy2, bgx1:bgx2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
-        cv2.putText(out, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        cv2.putText(out, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     return out
 
 router = APIRouter(prefix="/phone-cameras", tags=["phone-cameras"])

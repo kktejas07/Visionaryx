@@ -35,14 +35,19 @@ def _get_insightface_app():
         from insightface.app import FaceAnalysis
 
         settings = get_settings()
-        app = FaceAnalysis(name="buffalo_l", root="models/insightface")
+        # Must match the model used by routers/face.py enrollment (buffalo_sc).
+        app = FaceAnalysis(
+            name="buffalo_sc",
+            providers=["CPUExecutionProvider"],
+            allowed_modules=["detection", "recognition"],
+        )
         ctx_id = settings.INSIGHTFACE_CTX_ID
         app.prepare(
             ctx_id=ctx_id,
             det_size=(640, 640),
             det_thresh=float(settings.INSIGHTFACE_DET_THRESH),
         )
-        logger.info("InsightFace FaceAnalysis loaded")
+        logger.info("InsightFace FaceAnalysis loaded (buffalo_sc)")
         _insightface_app = app
     except ImportError:
         logger.warning("InsightFace not installed. Using OpenCV fallback.")

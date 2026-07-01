@@ -81,7 +81,7 @@ def _draw_detections(frame, faces: list, objects: list):
         color = (0, 255, 0) if status == "known" else (0, 0, 255)
         label = f.get("label") or ("Registered" if status == "known" else "Unknown")
         _cv.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        (text_w, text_h), _ = _cv.getTextSize(label, _cv.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+        (text_w, text_h), _ = _cv.getTextSize(label, _cv.FONT_HERSHEY_SIMPLEX, 0.6, 2)
         pad = 3
         text_x, text_y = x1, y1 - pad
         if text_y - text_h < 0:
@@ -93,7 +93,7 @@ def _draw_detections(frame, faces: list, objects: list):
         if bg_x2 > bg_x1 and bg_y2 > bg_y1:
             roi = out[bg_y1:bg_y2, bg_x1:bg_x2]
             out[bg_y1:bg_y2, bg_x1:bg_x2] = (roi * 0.25 + 30 * 0.75).astype(np.uint8)
-        _cv.putText(out, label, (text_x, text_y), _cv.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+        _cv.putText(out, label, (text_x, text_y), _cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     for o in objects:
         bbox = o.get("bbox")
         if not bbox or len(bbox) < 4:
