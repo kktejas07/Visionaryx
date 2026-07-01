@@ -1,8 +1,8 @@
 /**
  * Audit log — admin-only chronological action feed with filters + CSV export.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { api } from '@/lib/api';
@@ -43,48 +43,48 @@ export default function AuditScreen() {
   const [items, setItems] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [actorFilter, setActorFilter] = useState('');
   const [actionFilter, setActionFilter] = useState('');
-  const offsetRef = useRef(0);
-  const pageSize = 100;
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [page, setPage] = useState(0);
 
-  const fetchPage = useCallback(async (offset: number, append: boolean) => {
-    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+  const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
+
+  const fetchPage = useCallback(async (pageNum: number, size: number) => {
+    const offset = pageNum * size;
+    const params = new URLSearchParams({ limit: String(size), offset: String(offset) });
     if (actorFilter.trim()) params.set('actor', actorFilter.trim());
     if (actionFilter.trim()) params.set('action', actionFilter.trim());
     const r = await api<{ items: Row[]; total: number }>(`/api/v1/audit?${params.toString()}`);
-    if (append) {
-      setItems((prev) => [...prev, ...r.items]);
-    } else {
-      setItems(r.items);
-    }
+    setItems(r.items);
     setTotal(r.total);
     return r;
   }, [actorFilter, actionFilter]);
 
-  const load = useCallback(async () => {
+  const goToPage = useCallback(async (pageNum: number) => {
     setLoading(true);
-    offsetRef.current = 0;
+    setPage(pageNum);
     try {
-      await fetchPage(0, false);
+      await fetchPage(pageNum, pageSize);
     } catch {
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [fetchPage]);
+  }, [fetchPage, pageSize]);
 
-  const loadMore = useCallback(async () => {
-    if (loadingMore || items.length >= total) return;
-    setLoadingMore(true);
-    const nextOffset = offsetRef.current + pageSize;
+  const load = useCallback(async () => {
+    setLoading(true);
+    setPage(0);
     try {
-      await fetchPage(nextOffset, true);
-      offsetRef.current = nextOffset;
-    } catch { /* ignore */ }
-    finally { setLoadingMore(false); }
-  }, [fetchPage, loadingMore, items.length, total]);
+      await fetchPage(0, pageSize);
+    } catch {
+      setItems([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchPage, pageSize]);
 
   useEffect(() => { void load(); }, [load, tick]);
 
@@ -127,18 +127,8 @@ export default function AuditScreen() {
         keyExtractor={(i) => i.id}
         contentContainerStyle={styles.pad}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={C.primaryAccent} />}
-        onEndReached={() => { if (items.length < total) loadMore(); }}
-        onEndReachedThreshold={0.3}
         ListFooterComponent={
-          loadingMore ? (
-            <ActivityIndicator color={C.primaryAccent} style={{ paddingVertical: Space.lg }} />
-          ) : items.length < total ? (
-            <Pressable onPress={() => loadMore()} style={{ paddingVertical: Space.md, alignItems: 'center' as any }}>
-              <Text style={styles.loadMoreText}>Show more ({total - items.length} remaining)</Text>
-            </Pressable>
-          ) : items.length > 0 ? (
-            <Text style={styles.loadMoreText}>All {total} entries loaded</Text>
-          ) : null
+          totalPages > 1 ? <PageNav page={page} totalPages={totalPages} onGo={(n) => goToPage(n)} /> : null
         }
         ItemSeparatorComponent={() => <View style={{ height: Space.xs }} />}
         ListHeaderComponent={
@@ -205,7 +195,26 @@ export default function AuditScreen() {
               </View>
             </View>
 
-            <View style={{ marginTop: Space.lg }} />
+            <View style={styles.paginationBar}>
+              <Text style={[styles.pageInfo, { color: C.textFaint }]}>
+                {totalPages > 0 ? `Page ${page + 1} of ${totalPages} · ${total} entries` : `${total} entries`}
+              </Text>
+              <View style={styles.chipRow}>
+                {([10, 25, 50] as const).map((s) => {
+                  const active = pageSize === s;
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => { setPageSize(s); setPage(0); }}
+                      style={[styles.chip, active && styles.chipActive]}
+                      testID={`audit-page-size-${s}`}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{s}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         }
         renderItem={({ item }) => {
@@ -243,6 +252,52 @@ export default function AuditScreen() {
   );
 }
 
+function PageNav({ page, totalPages, onGo }: { page: number; totalPages: number; onGo: (n: number) => void }) {
+  return (
+    <View style={styles.pageNav}>
+      <Pressable
+        style={[styles.pageNavBtn, { opacity: page > 0 ? 1 : 0.4 }]}
+        onPress={() => { if (page > 0) onGo(page - 1); }}
+        disabled={page === 0}
+        testID="page-nav-prev"
+      >
+        <MaterialCommunityIcons name="chevron-left" size={14} color={C.textMuted} />
+      </Pressable>
+      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+        let pageNum: number;
+        if (totalPages <= 7) {
+          pageNum = i;
+        } else if (page < 4) {
+          pageNum = i;
+        } else if (page > totalPages - 5) {
+          pageNum = totalPages - 7 + i;
+        } else {
+          pageNum = page - 3 + i;
+        }
+        const active = pageNum === page;
+        return (
+          <Pressable
+            key={pageNum}
+            style={[styles.pageNumBtn, active && styles.pageNumBtnActive]}
+            onPress={() => { if (pageNum !== page) onGo(pageNum); }}
+            testID={`page-nav-${pageNum}`}
+          >
+            <Text style={[styles.pageNumText, active && styles.pageNumTextActive]}>{pageNum + 1}</Text>
+          </Pressable>
+        );
+      })}
+      <Pressable
+        style={[styles.pageNavBtn, { opacity: page < totalPages - 1 ? 1 : 0.4 }]}
+        onPress={() => { if (page < totalPages - 1) onGo(page + 1); }}
+        disabled={page >= totalPages - 1}
+        testID="page-nav-next"
+      >
+        <MaterialCommunityIcons name="chevron-right" size={14} color={C.textMuted} />
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
   pad: { padding: Space.lg, paddingBottom: 100, maxWidth: 1200, width: '100%', alignSelf: 'center' },
@@ -274,5 +329,12 @@ const styles = StyleSheet.create({
   detail: { ...TextStyles.caption, color: C.textFaint, fontFamily: F.mono, marginTop: 2, fontSize: 10 },
   time: { ...TextStyles.caption, color: C.textFaint, fontFamily: F.mono, fontSize: 10 },
   empty: { ...TextStyles.body, color: C.textMuted, padding: Space.xxl, textAlign: 'center' },
-  loadMoreText: { ...TextStyles.caption, color: C.textFaint, fontFamily: F.mono, textAlign: 'center' },
+  paginationBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Space.md, flexWrap: 'wrap', gap: Space.sm },
+  pageInfo: { ...TextStyles.caption, fontFamily: F.mono, fontSize: 11 },
+  pageNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: Space.lg },
+  pageNavBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface2 },
+  pageNumBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
+  pageNumBtnActive: { backgroundColor: C.primary },
+  pageNumText: { ...TextStyles.label, fontSize: 11, color: C.textMuted },
+  pageNumTextActive: { color: '#fff' },
 });
